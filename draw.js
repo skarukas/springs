@@ -34,13 +34,20 @@ let pianoRollElement = document.getElementById('piano-roll');
 //let rollKeyboardElement = document.getElementById('roll-keyboard');
 let xRange = document.getElementById('x-zoom');
 let yRange = document.getElementById('y-zoom');
+
 let rulerElement = document.getElementsByClassName('ruler-container')[0];
+let keyboardElement = document.getElementsByClassName('piano-container')[0];
+let scroller = document.getElementsByClassName('right-container')[0];
 
-let scrollX = document.getElementsByClassName('scrollable-roll')[0];
 
-scrollX.addEventListener('scroll',() => {
-    rulerElement.scrollLeft = scrollX.scrollLeft;
-    console.log(rulerElement.scrollLeft);
+scroller.addEventListener('scroll',() => {
+    keyboardElement.style.overflow = 'scroll';
+    keyboardElement.scrollTop = scroller.scrollTop;
+    keyboardElement.style.overflow = 'hidden';
+
+    rulerElement.style.overflow = 'scroll';
+    rulerElement.scrollLeft = scroller.scrollLeft;
+    rulerElement.style.overflow = 'hidden';
 });
 
 yRange.addEventListener('input', () => updateSequencerZoom(seqZoomX, yRange.value));
@@ -66,10 +73,20 @@ let [rulerTicks, barNumbers] = createRuler();
 
 function createRuler() {
     let ticks = Array(seqWidth).fill(0).map((_, i) => {
-        let height = (!(i % 2) + !(i % 4) + !(i % 8) + !(i % 16) + 1) * rulerHeight/6;
+        /* let height = (!(i % 2) + !(i % 4) + !(i % 8) + !(i % 16) + 1) * rulerHeight/6;
         return ruler.line(i * seqZoomX, 0, i * seqZoomX, height)
                     .stroke({width: 1})
-                    .stroke('black');
+                    .stroke('black'); */
+        if (i % 16 == 0) {
+            let g = ruler.group();
+            g.line(i * seqZoomX, 0, i * seqZoomX, 20)
+                .stroke({width: 1})
+                .stroke('black');
+            g.text("" + Math.ceil((i+1) / 16))
+                .font(seqTextStyle)
+                .center((i+1) * seqZoomX, 10);
+            return g;
+        }
     });
     return [ticks, null];
 }
@@ -138,7 +155,7 @@ function updateSequencerZoom(xZoom, yZoom) {
     }
     for (let i = 0; i < rulerTicks.length; i++) {
         let height = (!(i % 2) + !(i % 4) + !(i % 8) + !(i % 16) + 1) * rulerHeight/6;
-        rulerTicks[i].plot(i * seqZoomX, 0, i * seqZoomX, height);
+        rulerTicks[i]?.move(i * seqZoomX, 0);
     }
     //seqBackground.size(seqWidth * seqZoomX, numKeys * seqZoomY);
     for (let note of seqNodes) note.updateGraphics(0);
@@ -279,24 +296,6 @@ function createKeys(container) {
         let key = new PianoKey(i);
         key.draw(container);
         pianoKeys.push(key);
-        /*let key = container.rect(50, seqZoomY)
-            .radius(4)
-            .stroke('grey')
-            .fill(keys.white.color)
-            .move(0, (7-i) * seqZoomY)
-            .mouseover(() => {
-                key.fill(keys.white.hoverColor);
-            })
-            .mouseout(() => {
-                console.log("mouseout");
-                key.fill(keys.white.color);
-            })
-            .mousedown(() => {
-                key.fill(keys.white.clickColor);
-            })
-            .mouseup(() => {
-                key.fill(keys.white.color);
-            }); */
     }
 }
 
@@ -725,7 +724,6 @@ sequencer.mousemove(e => {
         seqSelectBox.plot(poly);
     }
     if (!seqLine.destination) seqText.hide();
-    //console.log(toSequencerX(e.x), toSequencerY(e.y));
 }).mousedown(e => {
     seqBoxStart = mousePosn(e);
     let poly = [[seqBoxStart.x, seqBoxStart.y],

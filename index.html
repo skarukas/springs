@@ -16,27 +16,30 @@
         <input type="range" min="4" max="16" name="y-zoom" orient="vertical" id="y-zoom">
         <input type="range" min="4" max="16" name="x-zoom" id="x-zoom">
 
-        <div class="ruler-container">
-            <span id="ruler-controls"></span>
-            <span id="ruler"></span>
-        </div>
         <div class="seq">
-            <div class="piano-container">
-                <div class="fixed-left-container" id="roll-keyboard">       
-<!--                     <img width="100%" src="https://vignette.wikia.nocookie.net/mrmen/images/d/d2/Mrtallimage.png/revision/latest/scale-to-width-down/340?cb=20130222100629"> -->
-                </div>
-                <div class="ruler-roll">
-                    <div class="roll-container">
-                        <div class="scrollable-roll">
-                            <!-- <img width="2000" src="https://helpx.adobe.com/content/dam/help/en/stock/how-to/visual-reverse-image-search/jcr_content/main-pars/image/visual-reverse-image-search-v2_intro.jpg"> -->
-                            <div id="piano-roll"></div>
-                        </div>
-                    </div>
+
+            <!-- keyboard -->
+            <div class="left-container">
+                <button id="ruler-controls">hi</button>
+                <div class="piano-container hidden-scrollable">
+                    <div id="roll-keyboard"></div>
                 </div>
             </div>
 
+            <!-- ruler -->
+            <div class="ruler-container hidden-scrollable">
+                <span id="ruler"></span>
+            </div>
+
+            <!-- piano roll -->
+            <div class="right-container">
+                <div id="piano-roll"></div>
+            </div>
         </div>
     </div>
     <p>HI!!!</p>
 </body>
 </html>
+
+<!-- <img width="2000" src="https://helpx.adobe.com/content/dam/help/en/stock/how-to/visual-reverse-image-search/jcr_content/main-pars/image/visual-reverse-image-search-v2_intro.jpg">
+<!--                     <img width="100%" src="https://vignette.wikia.nocookie.net/mrmen/images/d/d2/Mrtallimage.png/revision/latest/scale-to-width-down/340?cb=20130222100629"> -->

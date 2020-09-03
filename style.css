@@ -3,60 +3,75 @@ body {
     margin: 0px;
 }
 
-.fixed-left-container {
+/* .fixed-left-container {
     z-index: 4;
-    left: 0;
-    bottom: 0;
+    padding-top: 20px;
+    position: relative; 
+    float: left; 
+    width: 50px;
+} */
+
+.left-container {
     position: relative; 
     float: left; 
     width: 50px;
 }
 
+.right-container {
+    height: 380px;
+    overflow: scroll;
+}
+
 .seq {
     border: 2px solid black;
-    height: 400px; 
-    overflow-y: scroll;
+    height: 400px;
+    overflow: hidden;
 }
 
 .piano-container {
-    display: inline;
+    height: 380px;
+
    /*  overflow: visible;  */
 }
 
 .ruler-container {
     z-index: 5;
-    overflow: scroll;
+    height: 20px;
+}
+
+#ruler-controls {
+    width: 50px;
+    height: 20px;
+}
+
+.hidden-scrollable {
+    overflow: hidden;
     -ms-overflow-style: none;  /* IE and Edge */
     scrollbar-width: none;  /* Firefox */
-    pointer-events: none;
 }
 
-.ruler-container::-webkit-scrollbar {
+.hidden-scrollable::-webkit-scrollbar {
     display: none;
-  }
-
-.ruler-controls {
-    width: 50px;
 }
 
 
-.ruler-roll {
+/* .ruler-roll {
     position: relative;
     height: 400px;
-}
+} */
 
-.roll-container {
+/* .roll-container {
     overflow-x: scroll;
-    max-width: 85vw;
+
     padding-left: 1px;
     position: relative; 
     float: left; 
-}
+} */
 
-.scrollable-roll {
+/* .scrollable-roll {
     overflow-x: scroll;
     max-width: 85vw;
-}
+} */
 
 #y-zoom {
     writing-mode: bt-lr; /* IE */
