@@ -1,0 +1,72 @@
+body {
+    padding: 0px;
+    margin: 0px;
+}
+
+.fixed-left-container {
+    z-index: 4;
+    left: 0;
+    bottom: 0;
+    position: relative; 
+    float: left; 
+    width: 50px;
+}
+
+.seq {
+    border: 2px solid black;
+    height: 400px; 
+    overflow-y: scroll;
+}
+
+.piano-container {
+    display: inline;
+   /*  overflow: visible;  */
+}
+
+.ruler-container {
+    z-index: 5;
+    overflow: scroll;
+    -ms-overflow-style: none;  /* IE and Edge */
+    scrollbar-width: none;  /* Firefox */
+    pointer-events: none;
+}
+
+.ruler-container::-webkit-scrollbar {
+    display: none;
+  }
+
+.ruler-controls {
+    width: 50px;
+}
+
+
+.ruler-roll {
+    position: relative;
+    height: 400px;
+}
+
+.roll-container {
+    overflow-x: scroll;
+    max-width: 85vw;
+    padding-left: 1px;
+    position: relative; 
+    float: left; 
+}
+
+.scrollable-roll {
+    overflow-x: scroll;
+    max-width: 85vw;
+}
+
+#y-zoom {
+    writing-mode: bt-lr; /* IE */
+    -webkit-appearance: slider-vertical; /* WebKit */
+    width: 8px;
+    height: 50px;
+    padding: 0 5px;
+}
+
+#x-zoom {
+    width: 50px;
+}
+
