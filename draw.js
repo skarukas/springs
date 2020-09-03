@@ -39,6 +39,9 @@ let rulerElement = document.getElementsByClassName('ruler-container')[0];
 let keyboardElement = document.getElementsByClassName('piano-container')[0];
 let scroller = document.getElementsByClassName('right-container')[0];
 
+function disableMouseEvents(svgElement) {
+    svgElement.node.style.userSelect = 'none';
+}
 
 scroller.addEventListener('scroll',() => {
     keyboardElement.style.overflow = 'scroll';
@@ -56,6 +59,7 @@ xRange.addEventListener('input', () => updateSequencerZoom(xRange.value, seqZoom
 let draw = SVG().addTo('#piano-roll').size(seqZoomX * seqWidth, seqZoomY * numKeys);
 let keyboard = SVG().addTo('#roll-keyboard').size(keyWidth, seqZoomY * numKeys);
 let ruler = SVG().addTo('#ruler').size(seqZoomX * seqWidth, rulerHeight);
+
 //let keyboard = draw.group();
 //keyboard.move(0, 100);
 
@@ -82,9 +86,10 @@ function createRuler() {
             g.line(i * seqZoomX, 0, i * seqZoomX, 20)
                 .stroke({width: 1})
                 .stroke('black');
-            g.text("" + Math.ceil((i+1) / 16))
+            let mm = g.text("" + Math.ceil((i+1) / 16))
                 .font(seqTextStyle)
                 .center((i+1) * seqZoomX, 10);
+            disableMouseEvents(mm);
             return g;
         }
     });
@@ -408,16 +413,16 @@ class SeqNode {
         let fillColor = new SVG.Color(`rgb(0, 128, ${this.velocity * 2})`);
 
         const setDestination = () => {
-            if (seqLine.source && this != seqLine.source) {
-                seqLine.destination = this;
+            if (seqConnector.source && this != seqConnector.source) {
+                seqConnector.destination = this;
                 let intervalText;
-                if (this.isConnectedTo(seqLine.source)) {
+                if (this.isConnectedTo(seqConnector.source)) {
                     pianoRollElement.style.cursor = "not-allowed";
                 } else {
-                    intervalText = normAscendingInterval(guessJIInterval(seqLine.source.pitch, this.pitch)).toString();
+                    intervalText = normAscendingInterval(guessJIInterval(seqConnector.source.pitch, this.pitch)).toString();
                     //svgElement.style.cursor = "crosshair";
                                     
-                    let [mouseX, mouseY] = seqLine.array()[1] ;
+                    let [mouseX, mouseY] = seqConnector.array()[1] ;
                     seqText.text(intervalText)
                         .center(mouseX, mouseY - 15)
                         .front()
@@ -438,7 +443,7 @@ class SeqNode {
                 seqBender = this;
                 this.centDisplay.opacity(1);
             }).mouseout(() => {
-                seqLine.destination = null;
+                seqConnector.destination = null;
                 if (!seqBender) pianoRollElement.style.cursor = "default";
             });
 
@@ -457,14 +462,14 @@ class SeqNode {
             .opacity(0.2)
             .mousedown(e => {
                 let pt = sequencer.point(e.x, e.y);
-                seqLine.plot(pt.x, this.y + 0.5*this.height, pt.x, pt.y).show().front();
-                seqLine.source = this;
+                seqConnector.plot(pt.x, this.y + 0.5*this.height, pt.x, pt.y).show().front();
+                seqConnector.source = this;
             })
             .mouseover(() => {
                 pianoRollElement.style.cursor = "crosshair";
             })
             .mouseout(() => {
-                if (!seqLine.visible()) pianoRollElement.style.cursor = "default";
+                if (!seqConnector.visible()) pianoRollElement.style.cursor = "default";
                 else pianoRollElement.style.cursor = "crosshair";
             })
             .mousemove(setDestination);
@@ -614,7 +619,7 @@ class SeqEdge {
         return (this.a.handleY + this.b.handleY) / 2;
     }
     draw() {
-        let destination = seqLine.array()[1];
+        let destination = seqConnector.array()[1];
         this.line = sequencer.line(this.a.handleX, 
                                     this.a.handleY,
                                     destination[0], 
@@ -658,7 +663,8 @@ function normAscendingInterval(interval) {
     return interval.normalized();
 }
 
-let seqLine = sequencer.line().stroke(lineStroke).hide();
+let seqPlayback = sequencer.line().stroke({ width: 2, color: 'red'}).front().hide();
+let seqConnector = sequencer.line().stroke(lineStroke).hide();
 let seqText = sequencer.text("").font(seqTextStyle).hide();
 let seqResizeRight = null;
 let seqResizeLeft = null;
@@ -673,9 +679,24 @@ let seqSelectBox =
 let seqBoxStart = null;
 let selectedNotes = [];
 
+
+let x = 0;
+let bpm = 120;
+let measureLength = (60000 * 4)/bpm;
+let measureWidth = 16 * seqZoomX;
+let division = 32;
+
+/* setInterval(() => {
+    seqPlayback.show()
+    seqPlayback.plot(x, 0, x, numKeys * seqZoomY);
+    let playbackPosn = Math.max(x - 100, 0)
+    scroller.scroll(playbackPosn, scroller.scrollTop);
+    x = x + measureWidth / division;
+}, measureLength / division); */
+
 // pass through mouse events
-seqText.node.style.pointerEvents = 'none'; 
-seqLine.node.style.pointerEvents = 'none';
+disableMouseEvents(seqText);
+disableMouseEvents(seqConnector);
 let lastY;
 let lastBend;
 
@@ -690,11 +711,11 @@ function mousePosn(e) {
 }
 
 sequencer.mousemove(e => {
-    if (seqLine.visible()) {
-        let oldPt = seqLine.array()[0];
+    if (seqConnector.visible()) {
+        let oldPt = seqConnector.array()[0];
         let newPt = sequencer.point(e.x, e.y);
-        seqLine.plot(...oldPt, newPt.x, newPt.y);
-        if (!seqLine.destination) pianoRollElement.style.cursor = "crosshair";
+        seqConnector.plot(...oldPt, newPt.x, newPt.y);
+        if (!seqConnector.destination) pianoRollElement.style.cursor = "crosshair";
     } else if (seqResizeRight) {
         let roundedX = Math.round(toSequencerX(e.x) / seqGrid) * seqGrid;
         seqResizeRight.duration = Math.max(roundedX - seqResizeRight.start, seqGrid);
@@ -723,7 +744,7 @@ sequencer.mousemove(e => {
             [seqBoxStart.x, seqBoxStart.y]];
         seqSelectBox.plot(poly);
     }
-    if (!seqLine.destination) seqText.hide();
+    if (!seqConnector.destination) seqText.hide();
 }).mousedown(e => {
     seqBoxStart = mousePosn(e);
     let poly = [[seqBoxStart.x, seqBoxStart.y],
@@ -733,15 +754,15 @@ sequencer.mousemove(e => {
     seqSelectBox.plot(poly)
                 .show();
 }).mouseup(e => {
-    if (seqLine.visible()) {
-        if (seqLine.destination) {
-            let success = seqLine.source.connectTo(seqLine.destination);
-            console.log(`connected ${seqLine.source.pitch} and ${seqLine.destination.pitch}? ${!!success}`);
+    if (seqConnector.visible()) {
+        if (seqConnector.destination) {
+            let success = seqConnector.source.connectTo(seqConnector.destination);
+            console.log(`connected ${seqConnector.source.pitch} and ${seqConnector.destination.pitch}? ${!!success}`);
         } 
-        seqLine.hide();
+        seqConnector.hide();
         seqText.hide();
-        seqLine.source = null;
-        seqLine.destination = null;
+        seqConnector.source = null;
+        seqConnector.destination = null;
     } else if (seqSelectBox.visible()) {
         // selector box
         selectedNotes = getNotesInside(seqSelectBox);
