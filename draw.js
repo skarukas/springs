@@ -3,7 +3,10 @@
 /*
 import * as svgJS from "@svgdotjs/svg.js";
 const SVG = svgJS.SVG;
-/**/ 
+/**/
+//const tune = require("./tune");
+
+ 
 
 let keyWidth = 50;
 let keyHeight = 20;
@@ -136,6 +139,10 @@ function createSequenceGrid() {
     return [grid, xLines, yLines];
 }
 
+grid.mouseup(() => {
+    editor.selectNote()
+});
+
 
 
 function playNote(pitch, play=true, options) {
@@ -213,14 +220,6 @@ const fiveLimitScale = [
     tune.FreqRatio(16, 9),
     tune.FreqRatio(15, 8)
 ];
-
-function getNotesInside(elem) {
-    return seqNodes.filter(note => {
-        let {x, y, x2, y2} = note.rect.bbox();
-        return elem.inside(x, y) 
-            || elem.inside(x2, y2);
-    });
-}
 
 function guessJIInterval(x, y) {
     let idx = (((y - x) % 12) + 12) % 12;
@@ -324,6 +323,9 @@ class SeqNode {
     get bend() {
         return this._bend;
     }
+    get soundingPitch() {
+        return this.bend + this.pitch;
+    }
 
     get x() {
         return this.start * seqZoomX;
@@ -348,6 +350,30 @@ class SeqNode {
     }
     get handleY() {
         return this.y + 0.5 * this.height;
+    }
+    get neighbors() {
+        return this.children;
+    }
+    get asNote() {
+        return tune.ETPitch(this.soundingPitch);
+    }
+    set selected(val) {
+        this._selected = val;
+        let bValue = Math.floor(this.velocity * 2);
+        let fillColor = val? 'red' : new SVG.Color(`rgb(0, 128, ${bValue})`);
+        this.rect.stroke(fillColor);
+    }
+    get selected() {
+        return this._selected;
+    }
+    redrawPosition() {
+        this.rect.move(this.x, this.y);
+        this.shadowRect.move(this.x, this.yET);
+        this.handle.center(this.handleX, this.handleY);
+        this.indicator.center(this.handleX - this.height * 0.8, this.handleY);
+        this.centDisplay.x((this.handleX - this.height) - this.centDisplay.length() - 5)
+            .cy(this.handleY);
+        this.resizeRight.move(this.xEnd - 4, this.y);
     }
     updateGraphics(animateDuration = 300) {
         let rect = this.rect, 
@@ -396,10 +422,11 @@ class SeqNode {
         this.indicator.show();
     }
     draw() {
+        let bValue = Math.floor(this.velocity * 2);
         // shadow rectangle, shows equal tempered pitch
         this.shadowRect = sequencer.rect(this.width, this.height)
             .stroke('rgb(60, 60, 60)')
-            .fill(new SVG.Color(`rgb(0, 255, ${this.velocity * 2})`))
+            .fill(new SVG.Color(`rgb(0, 255, ${bValue})`))
             .opacity(0.3)
             .radius(2)
             .move(this.x, this.yET);
@@ -410,9 +437,9 @@ class SeqNode {
             })
             .from(0, 1)
             .to(0, 0); */
-        let fillColor = new SVG.Color(`rgb(0, 128, ${this.velocity * 2})`);
+        let fillColor = new SVG.Color(`rgb(0, 128, ${bValue})`);
 
-        const setDestination = () => {
+        const setDestination = e => {
             if (seqConnector.source && this != seqConnector.source) {
                 seqConnector.destination = this;
                 let intervalText;
@@ -436,15 +463,18 @@ class SeqNode {
             .stroke(fillColor)
             .radius(2)
             .move(this.x, this.y)
-            .mousemove(setDestination)
-            .mouseover(() => {
-                pianoRollElement.style.cursor = "ns-resize";
-            }).mousedown(() => {
-                seqBender = this;
+            .mousemove(e => {
+                if (e.altKey) pianoRollElement.style.cursor = "ns-resize";
+                else pianoRollElement.style.cursor = "move";
+                setDestination(e);
+            }).mousedown(e => {
+                if (e.altKey) editor.action = editor.bend;
+                else editor.action = editor.move
+                
                 this.centDisplay.opacity(1);
             }).mouseout(() => {
                 seqConnector.destination = null;
-                if (!seqBender) pianoRollElement.style.cursor = "default";
+                if (editor.action != editor.bend) pianoRollElement.style.cursor = "default";
             });
 
         this.handle = sequencer.group();
@@ -464,8 +494,10 @@ class SeqNode {
                 let pt = sequencer.point(e.x, e.y);
                 seqConnector.plot(pt.x, this.y + 0.5*this.height, pt.x, pt.y).show().front();
                 seqConnector.source = this;
+                editor.action = editor.connector;
             })
             .mouseover(() => {
+                console.log("mouse over")
                 pianoRollElement.style.cursor = "crosshair";
             })
             .mouseout(() => {
@@ -482,7 +514,7 @@ class SeqNode {
             }).mouseout(() => {
                 if (!seqResizeLeft) pianoRollElement.style.cursor = "default";
             }).mousedown(() => {
-                seqResizeLeft = this;
+                editor.action = editor.resizeLeft;
             });
         this.centDisplay = sequencer.text(this.bendText)
             .font(seqTextStyle)
@@ -502,7 +534,7 @@ class SeqNode {
             }).mouseout(() => {
                 if (!seqResizeRight) pianoRollElement.style.cursor = "default";
             }).mousedown(e => {
-                seqResizeRight = this;
+                editor.action = editor.resizeRight;
             });
 
         this.group = sequencer.group();
@@ -514,18 +546,21 @@ class SeqNode {
 
         let display = false;
         this.group.mousemove(() => {
-            if (!seqBender) {
+            if (editor.action != editor.bend) {
                 this.centDisplay.opacity(1);
                 display = true;
             }
         }).mouseout(() => {
-            if (display && !seqBender) {
+            if (display && editor.action != editor.bend) {
  /*                this.centDisplay.animate(1000, 300).opacity(0).after(() => {
                     display = false;
                 }); */
                 this.centDisplay.opacity(0);
                 display = false;
             }
+        }).mousedown(e => {
+            if (e.metaKey || e.ctrlKey) editor.toggleNoteInSelection(this); 
+            else editor.selectNote(this);
         });
 
         this.updateGraphics(0);
@@ -535,6 +570,62 @@ class SeqNode {
         let str = (Math.round((this.bend * 100) * 100) / 100) + "c";
         if (this.bend >= 0) str = "+" + str;
         return str;
+    }
+    getIntervalTo(other) {
+        /* let visited = new Set();
+        let fringe = [[this, tune.ETInterval(0)]];
+        
+        while (fringe.length) {
+            let [n, interval] = fringe.pop();
+            visited.add(n);
+            for (let child of n.neighbors) {
+                if (!(child.b in visited) && !(child.b in fringe)) {
+                    let newInterval = interval.add(child.interval)
+                    if (child.b == other) return newInterval;
+                    else fringe.unshift([child.b, newInterval]);
+                }
+            }
+        }
+        return tune.ETInterval(other.soundingPitch - this.soundingPitch); */
+        return this.BFS({
+            initialStore: [tune.ETInterval(0)],
+            predicate: child => child.b == other,
+            combine: (edge, interval) => [interval.add(edge.interval)],
+            successVal: (edge, interval) => interval.add(edge.interval),
+            failureVal: () => tune.ETInterval(other.soundingPitch - this.soundingPitch)
+        });
+    }
+    /**
+     * StoreVals := [...]
+     * 
+     * initialStore : [...StoreVals]
+     * predicate : Edge -> Boolean
+     * combine: Edge, ...StoreVals -> [...StoreVals]
+     * successVal : Edge, ...StoreVals -> S
+     * failureVal : () -> S
+     * */
+    BFS(options) {
+
+        options.initialStore = options.initialStore || [null];
+        options.combine = options.combine || (edge => []);
+        options.successVal = options.successVal || (edge => edge);
+        options.failureVal = options.failureVal || (() => null);
+
+        let visited = new Set();
+        let fringe = [[this, ...options.initialStore]];
+        
+        while (fringe.length) {
+            let [node, ...storeVals] = fringe.pop();
+            visited.add(node);
+            for (let child of node.neighbors) {
+                if (!(child.b in visited)) {
+                    let newStore = options.combine(child, ...storeVals);
+                    if (options.predicate(child)) return options.successVal(child, ...storeVals);
+                    else fringe.unshift([child.b, ...newStore]);
+                }
+            }
+        }
+        return options.failureVal();
     }
     connectTo(other, by = guessJIInterval(this.pitch, other.pitch)) {
         // does not really account for other already having a parent
@@ -554,6 +645,16 @@ class SeqNode {
         other.bend = tune.ETPitch(other.pitch).intervalTo(other.note).cents();
         other.tree = this.tree; */
         return edge;
+    }
+    disconnectFrom(other) {
+        return this.BFS({
+            predicate: edge => edge.b == other,
+            successVal: edge => {
+                edge.remove()
+                return true;
+            },
+            failureVal: () => false,
+        });
     }
     isConnectedTo(other) {
         return this.hasDescendant(other) 
@@ -579,7 +680,21 @@ class SeqNode {
     propogateBend(bend, animateDuration = 300) {
         this.bend = bend;
         this.updateGraphics(animateDuration);
-        for (let child of this.children) child.propogateBend(bend, animateDuration);
+        console.log("propogating bend! :-}")
+/*         for (let child of this.children) child.propogateBend(bend, animateDuration); */
+
+        this.BFS({
+            initialStore: [bend],
+            predicate: () => false,
+            combine: (edge, bend) => {
+                let note = edge.b;
+                let newBend = edge.getBend() + bend
+                note.bend = newBend;
+                note.updateGraphics(animateDuration);
+                edge.updateGraphics(animateDuration);
+                return [newBend];
+            }
+        });
     }
     remove() {
         this.bend = 0;
@@ -588,6 +703,7 @@ class SeqNode {
     }
     removeChild(node) {
         this.children = this.children.filter(edge => edge.b != node);
+        console.log("children:", this.children)
     }
 }
 
@@ -645,7 +761,13 @@ class SeqEdge {
     }
     remove() {
         this.a.removeChild(this.b);
+        this.b.parent = undefined; ////FIX THIS WHEN U FIX NEIGHBORS
+        console.log("b:", this.b)
         this.b.resetBend();
+        this.line.remove();
+        this.text.remove();
+        seqEdges = seqEdges.filter(e => e != this);
+        console.log("edges:",seqEdges)
     }
     // offset child and all its children by this bend amount
     propogateBend(bend, animateDuration) {
@@ -670,14 +792,14 @@ let seqResizeRight = null;
 let seqResizeLeft = null;
 let seqGrid = 1;
 let seqBender = null;
+let seqMover= null;
 let seqSelectBox = 
     sequencer.polygon()
         .fill('grey')
         .opacity(0.2)
         .stroke('black')
         .hide();
-let seqBoxStart = null;
-let selectedNotes = [];
+let seqClickStart = null;
 
 
 let x = 0;
@@ -697,8 +819,6 @@ let division = 32;
 // pass through mouse events
 disableMouseEvents(seqText);
 disableMouseEvents(seqConnector);
-let lastY;
-let lastBend;
 
 let xScrollElement = document.getElementsByClassName("scrollable-roll")[0];
 let yScrollElement = document.getElementsByClassName("seq")[0];
@@ -709,74 +829,271 @@ function mousePosn(e) {
         y: e.offsetY
     }
 }
+const editor = {};
+
+let startStarts;
+editor.resizeLeft = function(e, ...notes) {
+    if (!startStarts) {
+        startStarts = new Map();
+        for (let note of notes) startStarts.set(note, note.start);
+    }
+
+    let deltaX = toSequencerX(e.x - seqClickStart.x);
+    for (let note of notes) {
+        let start = Math.round((startStarts.get(note) + deltaX) / seqGrid) * seqGrid;
+        note.duration = Math.max(note.duration + (note.start - start), seqGrid);
+        if (note.duration > seqGrid) note.start = start;
+        note.updateGraphics(0);
+        for (let child of note.neighbors) child.updateGraphics(0);
+    }
+}
+
+let startDurs;
+editor.resizeRight = function(e, ...notes) {
+    if (!startDurs) {
+        startDurs = new Map();
+        for (let note of notes) startDurs.set(note, note.duration);
+    }
+
+    let deltaX = toSequencerX(e.x - seqClickStart.x);
+    for (let note of notes) {
+        let dur = Math.round((startDurs.get(note) + deltaX) / seqGrid) * seqGrid;
+        note.duration = Math.max(dur, seqGrid);
+        note.updateGraphics(0);
+    }
+}
+
+let lastBend = {};
+let lastY;
+editor.bend = function(e, ...notes) {
+    lastY = lastY || e.y;
+    let deltaY = e.y - lastY;
+    for (let note of notes) {
+        let newBend = Math.round(note.bend * 100 - deltaY) / 100;
+        if (newBend != lastBend[note]) note.propogateBend(newBend, 0);
+        lastBend[note] = newBend;
+    }
+    
+    lastY = e.y;
+}
+
+editor.boxSelect = function(box, start, e) {
+    let end = mousePosn(e);
+    let poly = [
+        [start.x, end.y],
+        [end.x, end.y],
+        [end.x, start.y],
+        [start.x, start.y]];
+    box.plot(poly);
+}
+
+editor.toggleNoteInSelection = function(note) {
+    if (editor.selectedNote && !editor.selection.includes(editor.selectedNote)) {
+        editor.selection.push(editor.selectedNote);
+        editor.selectedNote = undefined;
+    }
+    if (editor.selection.includes(note)) {
+        editor.selection = editor.selection.filter(n => n != note);
+        note.selected = false;
+    } else {
+        editor.selection.push(note);
+        note.selected = true;
+        editor.selectedNote = note;
+    }
+    console.log(editor.selection)
+}
+
+editor.selectNotes = function(elem) {
+    editor.deselectNotes();
+    editor.selection = seqNodes.filter(note => {
+        let {x, y, x2, y2} = note.rect.bbox();
+        return elem.inside(x, y) 
+            || elem.inside(x2, y2);
+    });
+    for (let note of editor.selection) note.selected = true;
+}
+
+editor.deselectNotes = function() {
+    //for (let note of seqNodes) note.selected = false;
+    for (let note of editor.selection) note.selected = false;
+}
+
+editor.selectNote = function(note) {
+    if(editor.selectedNote && !editor.selection.includes(note)) {
+        editor.selectedNote.selected = false;
+    }
+    note && (note.selected = true);
+    editor.selectedNote = note;
+}
+
+// divide moving from note1 to note2
+editor.equallyDivide = function(note1, note2, n) {
+    if (n < 1) return;
+
+    let interval = note1.getIntervalTo(note2).divide(n);
+    const incStep = (a, b, steps) => (b - a) / steps;
+    let velocityStep = incStep(note1.velocity, note2.velocity, n);
+    let startStep = incStep(note1.start, note2.start, n);
+    let durationStep = incStep(note1.duration, note2.duration, n);
+
+    editor.disconnect(note1, note2);
+    let prev = note1;
+    for (let i = 1; i < n; i++) {
+        let pitch = Math.round(prev.asNote.noteAbove(interval).asET().pitch);
+        let curr = editor.addNote(
+            pitch, 
+            note1.velocity + velocityStep * i, 
+            note1.start + startStep * i, 
+            note1.duration + durationStep * i);
+        editor.connect(prev, curr, interval);
+        prev = curr;
+    }
+    editor.connect(prev, note2, prev.getIntervalTo(note2));
+}
+
+editor.addNote = function(pitch, velocity, start, duration) {
+    console.log(...arguments);
+    let note = new SeqNode(pitch, velocity, start, duration)
+    seqNodes.push(note);
+    return note;
+}
+
+editor.disconnect = function(note1, note2) {
+    note1.disconnectFrom(note2);
+}
+
+editor.connect = function(note1, note2, by) {
+    let success = note1.connectTo(note2, by);
+    console.log(`connected ${note1.pitch} and ${note2.pitch}? ${!!success}`);
+}
+
+let startPosns;
+let lastDeltas;
+editor.move = function(e, ...notes) {
+    e = mousePosn(e)
+    if (!startPosns) {
+        startPosns = new Map();
+        lastDeltas = {x:0, y:0};
+        for (let note of notes) startPosns.set(note, { start: note.start, pitch: note.pitch});
+    }
+
+    let deltaX = toSequencerX(e.x) - toSequencerX(seqClickStart.x);
+    deltaX = Math.round(deltaX / seqGrid) * seqGrid;
+    let deltaY = Math.round(toSequencerY(e.y) - toSequencerY(seqClickStart.y));
+    if (lastDeltas.x != deltaX) {
+        for (let note of notes) {
+            let n = startPosns.get(note);
+            note.start = Math.max(n.start + deltaX, 0);
+            note.redrawPosition(0);
+        }
+    }
+    if (lastDeltas.y != deltaY) {
+        for (let note of notes) {
+            let n = startPosns.get(note);
+            note.pitch = Math.min(Math.max(n.pitch + deltaY, 0), numKeys-1);
+            note.redrawPosition(0);
+        }
+    }
+    lastDeltas = {x: deltaX, y: deltaY};
+}
+
+editor.applyToSelection = function(fn, e) {
+    let notes = editor.selection;
+    let curr = editor.selectedNote;
+    if (notes.includes(curr)) fn(e, ...notes);
+    ///else fn(e, ...notes, curr)
+    else editor.deselectNotes(), fn(e, curr);
+}
+
+editor.connector = function(seqConnector, e) {
+    let oldPt = seqConnector.array()[0];
+    let newPt = sequencer.point(e.x, e.y);
+    seqConnector.plot(...oldPt, newPt.x, newPt.y);
+    
+    if (!seqConnector.destination) {
+        seqText.hide();
+        pianoRollElement.style.cursor = "crosshair";
+    }
+}
+
+editor.selection = [];
+editor.action = null;
+
+// for debugging purposes
+window.editor = editor;
+window.notes = () => seqNodes;
+window.edges = () => seqEdges;
 
 sequencer.mousemove(e => {
-    if (seqConnector.visible()) {
-        let oldPt = seqConnector.array()[0];
-        let newPt = sequencer.point(e.x, e.y);
-        seqConnector.plot(...oldPt, newPt.x, newPt.y);
-        if (!seqConnector.destination) pianoRollElement.style.cursor = "crosshair";
-    } else if (seqResizeRight) {
-        let roundedX = Math.round(toSequencerX(e.x) / seqGrid) * seqGrid;
-        seqResizeRight.duration = Math.max(roundedX - seqResizeRight.start, seqGrid);
-        seqResizeRight.updateGraphics(0);
-    } else if (seqResizeLeft) {
-        let roundedX = Math.round(toSequencerX(e.x) / seqGrid) * seqGrid;
-        seqResizeLeft.duration = Math.max(seqResizeLeft.duration + (seqResizeLeft.start - roundedX), seqGrid);
-        if (seqResizeLeft.duration > seqGrid) seqResizeLeft.start = roundedX;
-        seqResizeLeft.updateGraphics(0);
-        for (let child of seqResizeLeft.children) child.updateGraphics(0);
-    } else if (seqBender) {
-        lastY = lastY || e.y;
-        let deltaY = e.y - lastY;
-        let newBend = Math.round(seqBender.bend * 100 - deltaY) / 100;
-        if (newBend != lastBend) seqBender.propogateBend(newBend, 0);
-        
-        lastY = e.y;
-        lastBend = newBend;
-        //seqResize.updateGraphics(0);
-    } else if (seqSelectBox.visible()) {
-        let p = mousePosn(e);
-        let poly = [
-            [seqBoxStart.x, p.y],
-            [p.x, p.y],
-            [p.x, seqBoxStart.y],
-            [seqBoxStart.x, seqBoxStart.y]];
-        seqSelectBox.plot(poly);
+    switch (editor.action) {
+        case editor.move:
+        case editor.bend:
+        case editor.resizeLeft:
+        case editor.resizeRight:
+            editor.applyToSelection(editor.action, e)
+            break;
+        case editor.boxSelect:
+            editor.boxSelect(seqSelectBox, seqClickStart, e);
+            break;
+        case editor.connector:
+            editor.connector(seqConnector, e);
     }
-    if (!seqConnector.destination) seqText.hide();
-}).mousedown(e => {
-    seqBoxStart = mousePosn(e);
-    let poly = [[seqBoxStart.x, seqBoxStart.y],
-                [seqBoxStart.x, seqBoxStart.y],
-                [seqBoxStart.x, seqBoxStart.y],
-                [seqBoxStart.x, seqBoxStart.y]];
-    seqSelectBox.plot(poly)
-                .show();
-}).mouseup(e => {
+    return
+
+/* 
     if (seqConnector.visible()) {
+        editor.connector(seqConnector, e)
+    } else if (seqResizeRight) {
+        editor.applyToSelection(e, editor.resizeRight, seqResizeRight)
+    } else if (seqResizeLeft) {
+        editor.applyToSelection(e, editor.resizeLeft, seqResizeLeft)
+    } else if (seqBender) {
+        editor.applyToSelection(e, editor.bend, seqBender)
+    } else if (seqMover) {
+        editor.applyToSelection(e, editor.action, seqMover)
+    } else if (seqSelectBox.visible()) {
+        editor.boxSelect(seqSelectBox, seqClickStart, mousePosn(e));
+    }
+
+    if (!seqConnector.destination) seqText.hide(); */
+}).mousedown(e => {
+    seqClickStart = mousePosn(e);
+    if (!editor.action) {
+        let poly = [[seqClickStart.x, seqClickStart.y],
+        [seqClickStart.x, seqClickStart.y],
+        [seqClickStart.x, seqClickStart.y],
+        [seqClickStart.x, seqClickStart.y]];
+        seqSelectBox.plot(poly).show();
+        editor.action = editor.boxSelect;
+        console.log("showing box")
+    }
+}).mouseup(e => {
+    if (editor.action == editor.connector) {
         if (seqConnector.destination) {
-            let success = seqConnector.source.connectTo(seqConnector.destination);
-            console.log(`connected ${seqConnector.source.pitch} and ${seqConnector.destination.pitch}? ${!!success}`);
+            editor.connect(seqConnector.source, seqConnector.destination);
         } 
         seqConnector.hide();
         seqText.hide();
         seqConnector.source = null;
         seqConnector.destination = null;
-    } else if (seqSelectBox.visible()) {
+    } else if (editor.action == editor.boxSelect) {
         // selector box
-        selectedNotes = getNotesInside(seqSelectBox);
-        console.log(selectedNotes)
-        seqSelectBox.hide().size(0, 0);
+        editor.selectNotes(seqSelectBox);
+        console.log("selected notes:",editor.selection)
+        seqSelectBox.size(0, 0).hide();
     }
 
     seqResizeRight = null;
     seqResizeLeft = null;
     seqBender = null;
+    seqMover = null;
     lastY = null;
-
+    startStarts = undefined;
+    startDurs = undefined;
+    startPosns = undefined;
 
     pianoRollElement.style.cursor = "default";
+    editor.action = undefined;
 });
 
 function showAdjustments(show) {
@@ -788,14 +1105,16 @@ function showAdjustments(show) {
         for (let edge of seqEdges) edge.hide();
     }
 }
-window.zoom = updateSequencerZoom;
-window.show = showAdjustments;
+editor.zoom = updateSequencerZoom;
+editor.show = showAdjustments;
 
 /* let C = new SeqNode(60, 60, 3, 30);
 let E = new SeqNode(64, 12, 13, 10);
 let G = new SeqNode(67, 128, 3, 40);
 let B = new SeqNode(71, 53, 5, 4);
 seqNotes = [C, E, Gsharp, B]; */
+seqNodes.push(new SeqNode(60, 60, 20, 10));
+seqNodes.push(new SeqNode(72, 128, 25, 15));
 
 for (let i = 0; i < 20; i++) {
     //let pitch = Math.floor(Math.random() * 60) + 60;
