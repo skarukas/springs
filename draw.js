@@ -42,6 +42,15 @@ let rulerElement = document.getElementsByClassName('ruler-container')[0];
 let keyboardElement = document.getElementsByClassName('piano-container')[0];
 let scroller = document.getElementsByClassName('right-container')[0];
 
+document.onkeydown = function(e) {
+    switch (e.key) {
+        case " ":
+            e.preventDefault();
+            if (playback.playing) playback.pause();
+            else playback.play();
+    }
+}
+
 function disableMouseEvents(svgElement) {
     svgElement.node.style.userSelect = 'none';
 }
@@ -56,13 +65,18 @@ scroller.addEventListener('scroll',() => {
     rulerElement.style.overflow = 'hidden';
 });
 
-yRange.addEventListener('input', () => updateSequencerZoom(seqZoomX, yRange.value));
-xRange.addEventListener('input', () => updateSequencerZoom(xRange.value, seqZoomY));
+yRange.addEventListener('input', () => updateSequencerZoom(seqZoomX, +yRange.value));
+xRange.addEventListener('input', () => updateSequencerZoom(+xRange.value, seqZoomY));
 
 let draw = SVG().addTo('#piano-roll').size(seqZoomX * seqWidth, seqZoomY * numKeys);
 let keyboard = SVG().addTo('#roll-keyboard').size(keyWidth, seqZoomY * numKeys);
 let ruler = SVG().addTo('#ruler').size(seqZoomX * seqWidth, rulerHeight);
 
+ruler.mousemove(e => {
+    if (!playback.playing && e.buttons == 1) playback.position = e.offsetX;
+}).mousedown(e => {
+    if (!playback.playing) playback.position = e.offsetX;
+});
 //let keyboard = draw.group();
 //keyboard.move(0, 100);
 
@@ -303,6 +317,36 @@ function createKeys(container) {
     }
 }
 
+class SeqGliss {
+    constructor(start, end) {
+        this.start = start;
+        this.end = end;
+    }
+    draw() {
+        let bValue1 = Math.floor(this.start.velocity * 2);
+        let bValue2 = Math.floor(this.end.velocity * 2);
+        let fillColor1 = new SVG.Color(`rgb(0, 128, ${bValue1})`);
+        let fillColor2 = new SVG.Color(`rgb(0, 128, ${bValue2})`);
+    
+        let gradient = sequencer.gradient('linear', add => {
+            add.stop(0, fillColor1);
+            add.stop(1, fillColor2);
+        });
+        this.path = sequencer.path(simpleBezierPath({x: this.start.xEnd, y: this.start.y + seqZoomY / 2}, 
+                                        {x: this.end.x, y: this.end.y + seqZoomY / 2}, 'horizontal'))
+            .stroke({color: gradient, width: seqZoomY})
+            .fill('none')
+            .opacity(0.4)
+            .insertAfter(this.start.rect)
+            .insertAfter(this.end.rect);
+    }
+    redrawPosition() {
+        this.path.plot(simpleBezierPath(
+            {x: this.start.xEnd, y: this.start.y + seqZoomY / 2}, 
+            {x: this.end.x, y: this.end.y + seqZoomY / 2}, 'horizontal'));
+    }
+}
+
 class SeqNode {
     constructor(pitch, velocity, start, duration) {
         this.pitch = pitch;
@@ -311,6 +355,8 @@ class SeqNode {
         this.duration = duration;
         //this.tree = new SeqTree();
         this.children = [];
+        this.glissInputs = [];
+        this.glissOutputs = [];
 
         // these will change
         this._bend = 0;
@@ -375,6 +421,12 @@ class SeqNode {
             .cy(this.handleY);
         this.resizeRight.move(this.xEnd - 4, this.y);
     }
+    redrawInputs() {
+        for (let g of this.glissInputs) g.redrawPosition()
+    }
+    redrawOutputs() {
+        for (let g of this.glissOutputs) g.redrawPosition()
+    }
     updateGraphics(animateDuration = 300) {
         let rect = this.rect, 
             shadowRect = this.shadowRect,
@@ -431,29 +483,29 @@ class SeqNode {
             .radius(2)
             .move(this.x, this.yET);
 
-        /* let fillColor = draw.gradient('linear', (add) => {
-                add.stop(0, new SVG.Color(`rgb(0, 255, ${this.velocity * 2})`));
-                add.stop(1, new SVG.Color(`rgb(0, 128, ${this.velocity * 2})`));
-            })
-            .from(0, 1)
-            .to(0, 0); */
         let fillColor = new SVG.Color(`rgb(0, 128, ${bValue})`);
 
         const setDestination = e => {
             if (seqConnector.source && this != seqConnector.source) {
-                seqConnector.destination = this;
-                let intervalText;
-                if (this.isConnectedTo(seqConnector.source)) {
-                    pianoRollElement.style.cursor = "not-allowed";
+                if (editor.action == editor.glisser) {
+                    if (seqConnector.source.xEnd < this.x) {
+                        seqConnector.destination = this;
+                    }
                 } else {
-                    intervalText = normAscendingInterval(guessJIInterval(seqConnector.source.pitch, this.pitch)).toString();
-                    //svgElement.style.cursor = "crosshair";
-                                    
-                    let [mouseX, mouseY] = seqConnector.array()[1] ;
-                    seqText.text(intervalText)
-                        .center(mouseX, mouseY - 15)
-                        .front()
-                        .show();
+                    seqConnector.destination = this;
+                    let intervalText;
+                    if (this.isConnectedTo(seqConnector.source)) {
+                        pianoRollElement.style.cursor = "not-allowed";
+                    } else {
+                        intervalText = normAscendingInterval(guessJIInterval(seqConnector.source.pitch, this.pitch)).toString();
+                        //svgElement.style.cursor = "crosshair";
+                                        
+                        let {x, y} = mousePosn(e)
+                        seqText.text(intervalText)
+                            .center(x, y - 15)
+                            .front()
+                            .show();
+                    }
                 }
             }
         }
@@ -492,12 +544,16 @@ class SeqNode {
             .opacity(0.2)
             .mousedown(e => {
                 let pt = sequencer.point(e.x, e.y);
-                seqConnector.plot(pt.x, this.y + 0.5*this.height, pt.x, pt.y).show().front();
+                //seqConnector.plot(pt.x, this.y + 0.5*this.height, pt.x, pt.y).show().front();
+                seqConnector.plot(simpleBezierPath({x: pt.x, y: this.y + 0.5*this.height}, pt, 'vertical'))
+                    .stroke(lineStroke)
+                    .opacity(1)
+                    .show()
+                    /* .front(); */
                 seqConnector.source = this;
                 editor.action = editor.connector;
             })
             .mouseover(() => {
-                console.log("mouse over")
                 pianoRollElement.style.cursor = "crosshair";
             })
             .mouseout(() => {
@@ -529,12 +585,18 @@ class SeqNode {
             .stroke('black')
             .opacity(0.3)
             .fill('black')
-            .mouseover(() => {
-                pianoRollElement.style.cursor = "col-resize";
+            .mouseover(e => {
+                if (e.altKey) pianoRollElement.style.cursor = "all-scroll";
+                else pianoRollElement.style.cursor = "col-resize";
             }).mouseout(() => {
                 if (!seqResizeRight) pianoRollElement.style.cursor = "default";
             }).mousedown(e => {
-                editor.action = editor.resizeRight;
+                if (e.altKey) {
+                    editor.action = editor.glisser;
+                    seqConnector.source = this;
+                    seqConnector.stroke({color: fillColor, width: seqZoomY})
+                        .opacity(0.4);
+                } else editor.action = editor.resizeRight;
             });
 
         this.group = sequencer.group();
@@ -552,9 +614,6 @@ class SeqNode {
             }
         }).mouseout(() => {
             if (display && editor.action != editor.bend) {
- /*                this.centDisplay.animate(1000, 300).opacity(0).after(() => {
-                    display = false;
-                }); */
                 this.centDisplay.opacity(0);
                 display = false;
             }
@@ -572,21 +631,6 @@ class SeqNode {
         return str;
     }
     getIntervalTo(other) {
-        /* let visited = new Set();
-        let fringe = [[this, tune.ETInterval(0)]];
-        
-        while (fringe.length) {
-            let [n, interval] = fringe.pop();
-            visited.add(n);
-            for (let child of n.neighbors) {
-                if (!(child.b in visited) && !(child.b in fringe)) {
-                    let newInterval = interval.add(child.interval)
-                    if (child.b == other) return newInterval;
-                    else fringe.unshift([child.b, newInterval]);
-                }
-            }
-        }
-        return tune.ETInterval(other.soundingPitch - this.soundingPitch); */
         return this.BFS({
             initialStore: [tune.ETInterval(0)],
             predicate: child => child.b == other,
@@ -639,11 +683,7 @@ class SeqNode {
         // propogate own bend to subtree
         edge.draw();
         edge.propogateBend(this.bend);
-        /* this.tree.connect(this, other, by);
 
-        other.note = this.note.noteAbove(by);
-        other.bend = tune.ETPitch(other.pitch).intervalTo(other.note).cents();
-        other.tree = this.tree; */
         return edge;
     }
     disconnectFrom(other) {
@@ -680,8 +720,8 @@ class SeqNode {
     propogateBend(bend, animateDuration = 300) {
         this.bend = bend;
         this.updateGraphics(animateDuration);
-        console.log("propogating bend! :-}")
-/*         for (let child of this.children) child.propogateBend(bend, animateDuration); */
+        this.redrawInputs();
+        this.redrawOutputs();
 
         this.BFS({
             initialStore: [bend],
@@ -691,6 +731,8 @@ class SeqNode {
                 let newBend = edge.getBend() + bend
                 note.bend = newBend;
                 note.updateGraphics(animateDuration);
+                note.redrawInputs();
+                note.redrawOutputs();
                 edge.updateGraphics(animateDuration);
                 return [newBend];
             }
@@ -720,11 +762,12 @@ class SeqEdge {
 
             let dist = Math.abs(this.a.start - this.b.start);
             let width = 4 * (1 - Math.tanh(dist / 64)) + 1;
-            line.plot(this.a.handleX, 
-                        this.a.handleY,
-                        this.b.handleX, 
-                        this.b.handleY)
-                        .stroke({width: width});
+            let path = simpleBezierPath(
+                {x: this.a.handleX, y: this.a.handleY},
+                {x: this.b.handleX, y: this.b.handleY}, 
+                'vertical');
+            line.plot(path)
+                .stroke({width: width});
             text.center(this.midX, this.midY);
         }
     }
@@ -735,15 +778,16 @@ class SeqEdge {
         return (this.a.handleY + this.b.handleY) / 2;
     }
     draw() {
-        let destination = seqConnector.array()[1];
-        this.line = sequencer.line(this.a.handleX, 
-                                    this.a.handleY,
-                                    destination[0], 
-                                    destination[1])
+        let path = simpleBezierPath(
+            {x: this.a.handleX, y: this.a.handleY},
+            {x: this.b.handleX, y: this.b.handleY}, 
+            'vertical');
+
+        this.line = sequencer.path(path)
             .stroke(lineStroke)
             .opacity(0.7)
+            .fill('none')
             .mouseover(() => this.text.show())
-            //.mouseout(() => this.text.hide());
 
         this.text = sequencer.text(normAscendingInterval(this.interval).toString())
                     .font(seqTextStyle)
@@ -785,8 +829,7 @@ function normAscendingInterval(interval) {
     return interval.normalized();
 }
 
-let seqPlayback = sequencer.line().stroke({ width: 2, color: 'red'}).front().hide();
-let seqConnector = sequencer.line().stroke(lineStroke).hide();
+let seqConnector = sequencer.path().stroke(lineStroke).hide().fill('none');
 let seqText = sequencer.text("").font(seqTextStyle).hide();
 let seqResizeRight = null;
 let seqResizeLeft = null;
@@ -802,19 +845,61 @@ let seqSelectBox =
 let seqClickStart = null;
 
 
-let x = 0;
-let bpm = 120;
-let measureLength = (60000 * 4)/bpm;
-let measureWidth = 16 * seqZoomX;
-let division = 32;
+const playback = {
+    line: sequencer.line().stroke({ width: 2, color: 'red'}).hide().front(),
+    carrot: ruler.circle(10).fill('red').y(rulerHeight / 2).hide().front(),
+    intervalIndex: -1,
+    _position: 0,
+    bpm: 120,
+    set position(val) {
+        playback._position = val;
+        playback.line.plot(val, 0, val, numKeys * seqZoomY).show();
+        playback.carrot.cx(val).show()
+    },
+    get position() {
+        return playback._position;
+    },
+    get playing() {
+        return playback.intervalIndex != -1;
+    },
+    play(startPosition = playback.position) {
+        let start = Date.now();
+        playback.pause();
+        playback.position = startPosition || playback.position;
+        let measureLengthMs = (60000 * 4) / playback.bpm;
+        let measureWidth = 16 * seqZoomX;
+        let fps = 29;
+        playback.line.show().front()
+        playback.carrot.show().front()
 
-/* setInterval(() => {
-    seqPlayback.show()
-    seqPlayback.plot(x, 0, x, numKeys * seqZoomY);
-    let playbackPosn = Math.max(x - 100, 0)
-    scroller.scroll(playbackPosn, scroller.scrollTop);
-    x = x + measureWidth / division;
-}, measureLength / division); */
+        playback.intervalIndex = setInterval(() => {
+            let now = Date.now();
+            let deltaMs = now - start;
+            let measureCount = deltaMs / measureLengthMs;
+            let posn = startPosition + measureWidth * measureCount;
+            let screenPosn = Math.max(posn - 100, 0);
+            scroller.scroll(screenPosn, scroller.scrollTop);
+
+            playback.position = posn;
+            if (posn >= seqWidth * seqZoomX) playback.stop();
+        }, 1000 / fps);
+    },
+    pause() {
+        clearInterval(playback.intervalIndex);
+        playback.intervalIndex = -1;
+    },
+    stop() {
+        playback.pause();
+        playback.position = 0;
+        playback.line.hide();
+        playback.carrot.hide();
+    }
+}
+
+window.start = playback.start;
+window.stop = playback.stop;
+window.pause = playback.pause;
+
 
 // pass through mouse events
 disableMouseEvents(seqText);
@@ -844,6 +929,7 @@ editor.resizeLeft = function(e, ...notes) {
         note.duration = Math.max(note.duration + (note.start - start), seqGrid);
         if (note.duration > seqGrid) note.start = start;
         note.updateGraphics(0);
+        note.redrawInputs();
         for (let child of note.neighbors) child.updateGraphics(0);
     }
 }
@@ -860,6 +946,7 @@ editor.resizeRight = function(e, ...notes) {
         let dur = Math.round((startDurs.get(note) + deltaX) / seqGrid) * seqGrid;
         note.duration = Math.max(dur, seqGrid);
         note.updateGraphics(0);
+        note.redrawOutputs();
     }
 }
 
@@ -877,8 +964,24 @@ editor.bend = function(e, ...notes) {
     lastY = e.y;
 }
 
-editor.boxSelect = function(box, start, e) {
+editor.glisser = function(seqConnector, e) {
+    let start = {x: seqConnector.source.xEnd, y: seqConnector.source.y + seqZoomY / 2};
+    let time = toSequencerX(e.x)
+    let pitch = toSequencerY(e.y)
+    // discrete steps??
+   /*  time = Math.round(time * seqGrid) / seqGrid;
+    pitch = Math.floor(pitch) + 0.5 */
+    let x = time * seqZoomX;
+    let y = (numKeys - pitch) * seqZoomY
+    //seqConnector.plot(start.x, start.y, x, y).show();
+    let path = simpleBezierPath(start, {x, y}, 'horizontal');
+    seqConnector.plot(path)
+        .show();
+}
+
+editor.boxSelect = function(box, e) {
     let end = mousePosn(e);
+    let start = seqClickStart;
     let poly = [
         [start.x, end.y],
         [end.x, end.y],
@@ -952,7 +1055,6 @@ editor.equallyDivide = function(note1, note2, n) {
 }
 
 editor.addNote = function(pitch, velocity, start, duration) {
-    console.log(...arguments);
     let note = new SeqNode(pitch, velocity, start, duration)
     seqNodes.push(note);
     return note;
@@ -967,9 +1069,18 @@ editor.connect = function(note1, note2, by) {
     console.log(`connected ${note1.pitch} and ${note2.pitch}? ${!!success}`);
 }
 
+editor.gliss = function(start, end) {
+    let gliss = new SeqGliss(start, end);
+    start.glissOutputs.push(gliss);
+    end.glissInputs.push(gliss);
+    gliss.draw();
+    // add gliss???
+}
+
 let startPosns;
 let lastDeltas;
 editor.move = function(e, ...notes) {
+    //notes = getAllConnected(); // get those connected by 
     e = mousePosn(e)
     if (!startPosns) {
         startPosns = new Map();
@@ -985,13 +1096,17 @@ editor.move = function(e, ...notes) {
             let n = startPosns.get(note);
             note.start = Math.max(n.start + deltaX, 0);
             note.redrawPosition(0);
+            note.redrawInputs();
+            note.redrawOutputs();
         }
     }
     if (lastDeltas.y != deltaY) {
         for (let note of notes) {
             let n = startPosns.get(note);
-            note.pitch = Math.min(Math.max(n.pitch + deltaY, 0), numKeys-1);
+            note.pitch = Math.min(Math.max(n.pitch + deltaY, 0), numKeys);
             note.redrawPosition(0);
+            note.redrawInputs();
+            note.redrawOutputs();
         }
     }
     lastDeltas = {x: deltaX, y: deltaY};
@@ -1005,10 +1120,27 @@ editor.applyToSelection = function(fn, e) {
     else editor.deselectNotes(), fn(e, curr);
 }
 
+function simpleBezierPath(start, end, orientation) {
+    // 0.01 is added b/c beziers can't be completely straight
+    if (orientation == 'vertical') {
+        let ctrlPtOffset = (end.y - start.y) / 4;
+        return`M ${start.x} ${start.y} 
+               C ${start.x + .01} ${start.y + ctrlPtOffset}
+                 ${end.x + .01} ${end.y - ctrlPtOffset} 
+                 ${end.x} ${end.y}`;
+    } else {
+        let ctrlPtOffset = (end.x - start.x) / 4;
+        return `M ${start.x} ${start.y} 
+                C ${start.x + ctrlPtOffset} ${start.y + .01}
+                  ${end.x - ctrlPtOffset} ${end.y + .01} 
+                  ${end.x} ${end.y}`;
+    }
+}
+
 editor.connector = function(seqConnector, e) {
-    let oldPt = seqConnector.array()[0];
+    let oldPt = seqClickStart;
     let newPt = sequencer.point(e.x, e.y);
-    seqConnector.plot(...oldPt, newPt.x, newPt.y);
+    seqConnector.plot(simpleBezierPath(oldPt, newPt, 'vertical'));
     
     if (!seqConnector.destination) {
         seqText.hide();
@@ -1033,29 +1165,14 @@ sequencer.mousemove(e => {
             editor.applyToSelection(editor.action, e)
             break;
         case editor.boxSelect:
-            editor.boxSelect(seqSelectBox, seqClickStart, e);
+            editor.boxSelect(seqSelectBox, e);
             break;
         case editor.connector:
-            editor.connector(seqConnector, e);
+        case editor.glisser:
+            editor.action(seqConnector, e);
+            break;
     }
-    return
-
-/* 
-    if (seqConnector.visible()) {
-        editor.connector(seqConnector, e)
-    } else if (seqResizeRight) {
-        editor.applyToSelection(e, editor.resizeRight, seqResizeRight)
-    } else if (seqResizeLeft) {
-        editor.applyToSelection(e, editor.resizeLeft, seqResizeLeft)
-    } else if (seqBender) {
-        editor.applyToSelection(e, editor.bend, seqBender)
-    } else if (seqMover) {
-        editor.applyToSelection(e, editor.action, seqMover)
-    } else if (seqSelectBox.visible()) {
-        editor.boxSelect(seqSelectBox, seqClickStart, mousePosn(e));
-    }
-
-    if (!seqConnector.destination) seqText.hide(); */
+    //if (!playback.playing && e.buttons == 1) playback.position = e.offsetX;
 }).mousedown(e => {
     seqClickStart = mousePosn(e);
     if (!editor.action) {
@@ -1071,6 +1188,14 @@ sequencer.mousemove(e => {
     if (editor.action == editor.connector) {
         if (seqConnector.destination) {
             editor.connect(seqConnector.source, seqConnector.destination);
+        } 
+        seqConnector.hide();
+        seqText.hide();
+        seqConnector.source = null;
+        seqConnector.destination = null;
+    } else if (editor.action == editor.glisser) {
+        if (seqConnector.destination) {
+            editor.gliss(seqConnector.source, seqConnector.destination);
         } 
         seqConnector.hide();
         seqText.hide();
