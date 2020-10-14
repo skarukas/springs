@@ -3,14 +3,6 @@ body {
     margin: 0px;
 }
 
-/* .fixed-left-container {
-    z-index: 4;
-    padding-top: 20px;
-    position: relative; 
-    float: left; 
-    width: 50px;
-} */
-
 .left-container {
     position: relative; 
     float: left; 
@@ -26,6 +18,7 @@ body {
     border: 2px solid black;
     height: 400px;
     overflow: hidden;
+    position: relative;
 }
 
 .piano-container {
@@ -54,6 +47,12 @@ body {
     display: none;
 }
 
+.warning {
+    margin: 0;
+    text-align: end;
+    color: red;
+    font-family: 'Menlo'
+}
 
 /* .ruler-roll {
     position: relative;
@@ -77,11 +76,11 @@ body {
     writing-mode: bt-lr; /* IE */
     -webkit-appearance: slider-vertical; /* WebKit */
     width: 8px;
-    height: 50px;
+    height: 60px;
     padding: 0 5px;
 }
 
 #x-zoom {
-    width: 50px;
+    width: 60px;
 }
 
