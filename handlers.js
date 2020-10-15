@@ -1,7 +1,7 @@
 import editor from "./editor.js"
 import style from "./style.js"
 import grid from "./grid.js"
-import { mousePosn, simpleBezierPath, normAscendingInterval, guessJIInterval } from "./util.js"
+import { mousePosn, simpleBezierPath, normAscendingInterval, guessJIInterval, parseIntervalText, addMessage } from "./util.js"
 import SeqNote from "./seqNote.js";
 
 const handlers = {};
@@ -162,5 +162,61 @@ handlers["edge_line"] = {
     },
     exited(e, edge) {
         edge.text.animate(100).opacity(0)
+    },
+    doubleClick(e, edge) {
+        editor.typeEdit(null, edge)
+        /* let foreign = editor.canvas.foreignObject(editor.canvas.width(),editor.canvas.height())
+            //.move(edge.midX, edge.midY)
+            .front()
+        let oldText = edge.text.text()
+        let interval;
+        let fadeDur = 200;
+        let background = $(document.createElement('div'))
+            .css({
+                width: "100%",
+                height: "100%",
+                padding: 0,
+                margin: 0,
+                backgroundColor: 'white',
+                opacity: 0.6
+            }).on('mousedown', ø => {
+                background.fadeOut(fadeDur,ø =>foreign.remove())
+                input.fadeOut(fadeDur)
+            }).hide().fadeIn(fadeDur)
+            .appendTo(foreign.node)
+        //$(foreign.node).css('background-color','red')
+
+
+        let input = $(document.createElement('input'))
+            .attr({
+                type: 'text',
+                size: 10,
+                placeholder: oldText
+            }).css({
+                position: 'absolute',
+                left: edge.midX,
+                top: edge.midY,
+                backgroundColor: 'rgba(255,255,255,0.6)',
+                color: 'black',
+                padding: 4,
+            }).on('input', e => {
+                input.attr('size', Math.min(input.val().length, 5))
+                interval = parseIntervalText(input.val())
+                if (interval) input.css('color', 'green')
+                else input.css('color', 'black')
+            }).on('keydown', e => {
+                if (e.key == 'Enter' && interval) {
+                    console.log('sub')
+                    edge.updateInterval(interval)
+                    foreign.remove()
+                } else if (e.key == 'Escape') {
+                    console.log('esc')
+                    foreign.remove()
+                }
+                e.stopPropagation()
+            }).appendTo(foreign.node)
+            .hide().fadeIn(fadeDur)
+            .trigger('focus') */
     }
 }
+

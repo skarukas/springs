@@ -16,6 +16,9 @@ export default class SeqNote {
         this._bend = 0;
         SeqNote.graph.set(this, new Map())
     }
+    get frequency() {
+        return tune.Util.ETToFreq(this.soundingPitch)
+    }
     get duration() {
         return this.end-this.start
     }
@@ -75,9 +78,9 @@ export default class SeqNote {
             .cy(this.handleY);
         this.resizeRight.move(this.xEnd - 4, this.y);
     }
-    redrawInputs() {
+    redrawInputs(animateDuration=300) {
         for (let g of this.glissInputs) g.redrawPosition()
-        for (let [_, edge] of this.neighbors) edge.updateGraphics(0)
+        for (let [_, edge] of this.neighbors) edge.updateGraphics(animateDuration)
     }
     redrawOutputs() {
         for (let g of this.glissOutputs) g.redrawPosition()
@@ -288,7 +291,7 @@ export default class SeqNote {
     propagateBend(bend, animateDuration = 300, awayFrom=[]) {
         this.bend = bend;
         this.updateGraphics(animateDuration);
-        this.redrawInputs();
+        this.redrawInputs(animateDuration);
         this.redrawOutputs();
 
         this.BFS({
@@ -296,9 +299,10 @@ export default class SeqNote {
             initialStore: [bend],
             predicate: () => false,
             combine: (edge, child, bend) => {
-                let newBend = edge.getBend() + bend
+                let edgeBend = (edge.b == child)? edge.getBend() : -edge.getBend()
+                let newBend = edgeBend + bend
                 child.bend = newBend;
-                child.redrawInputs();
+                child.redrawInputs(animateDuration);
                 child.redrawOutputs();
                 child.updateGraphics(animateDuration);
                 return [newBend];

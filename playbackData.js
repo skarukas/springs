@@ -1,5 +1,6 @@
 import editor from "./editor.js";
-import ruler from "./ruler.js"
+import ruler from "./ruler.js";
+import audio from "./audio-playback.js";
 
 const $scroller = $('.right-container');
 const $ruler = $('.ruler-container');
@@ -12,6 +13,8 @@ const playback = {
     intervalIndex: -1,
     _position: 0,
     bpm: 120,
+    ticksPerBeat: 4,    // 16th division
+    beatsPerMeasure: 4, // in 4/4
     set position(val) {
         playback._position = val;
         playback.line.plot(val, 0, val, editor.numKeys * editor.zoomY).show();
@@ -27,8 +30,8 @@ const playback = {
         let start = Date.now();
         playback.pause();
         playback.position = startPosition || playback.position;
-        let measureLengthMs = (60000 * 4) / playback.bpm;
-        let measureWidth = 16 * editor.zoomX;
+        let measureLengthMs = (60000 * this.beatsPerMeasure) / playback.bpm;
+        let measureWidth = this.ticksPerBeat * this.beatsPerMeasure * editor.zoomX;
         let fps = 29;
         playback.line.show().front()
         playback.carrot.show().front()
@@ -55,6 +58,9 @@ const playback = {
         playback.position = 0;
         playback.line.hide();
         playback.carrot.hide();
+    },
+    MIDITimeToSeconds(ticks) {
+        return (60 * ticks) / (this.bpm * this.ticksPerBeat)
     }
 }
 

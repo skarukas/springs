@@ -9,8 +9,10 @@ export default class SeqEdge {
         this.b = b;
         this.interval = interval;
     }
-    updateGraphics(animateDuration) {
+    updateGraphics(animateDuration=300) {
         if (this.line) {
+            this.text.text(normAscendingInterval(this.interval).toString())
+
             let line = animateDuration? this.line.animate(animateDuration) : this.line;
             let text = animateDuration? this.text.animate(animateDuration) : this.text;
             
@@ -79,6 +81,12 @@ export default class SeqEdge {
         this.line.show();
         this.text.show();
     }
+    get minNote() {
+        return (this.a.pitch < this.b.pitch)? this.a : this.b
+    }
+    get maxNote() {
+        return (this.a.pitch < this.b.pitch)? this.b : this.a
+    }
     remove() {
         this.line.remove();
         this.text.remove();
@@ -86,15 +94,17 @@ export default class SeqEdge {
         SeqNote.graph.get(this.b).delete(this.a)
         
         /* Retune the higher note */
-        let min, max;
-        if (this.a.pitch < this.b.pitch) {
-            min = this.a
-            max = this.b
+        this.maxNote.propagateBend(0, 300, [this.minNote]);
+    }
+    updateInterval(newVal) {
+        /* Ensure the intervals go in the same direction */
+        if (this.interval.cents() * newVal.cents() > 0) {
+            this.interval = newVal
         } else {
-            min = this.b
-            max = this.a   
+            this.interval = newVal.inverse()
         }
-        max.propagateBend(0, 300, [min]);
+        this.minNote.propagateBend(0)
+        this.updateGraphics()
     }
     // return the amount the top note will be bent
     getBend() {

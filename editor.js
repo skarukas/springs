@@ -5,8 +5,10 @@ import SeqGliss from "./seqGliss.js";
 import grid from "./grid.js"
 import ruler from "./ruler.js"
 import handlers from "./handlers.js"
-import { pitchName, addMessage, disableMouseEvents, mousePosn, simpleBezierPath } from "./util.js"
+import { pitchName, addMessage, disableMouseEvents, mousePosn, simpleBezierPath, parseIntervalText } from "./util.js"
 import style from "./style.js";
+import playback from "./playbackData.js";
+import audio from "./audio-playback.js";
 
 const editor = {};
 export default editor;
@@ -55,12 +57,23 @@ editor.draw = function() {
     }).mousedown(e => {
         editor.clickStart = mousePosn(e);
         if (!editor.action) {
-            let poly = [[editor.clickStart.x, editor.clickStart.y],
-            [editor.clickStart.x, editor.clickStart.y],
-            [editor.clickStart.x, editor.clickStart.y],
-            [editor.clickStart.x, editor.clickStart.y]];
-            editor.selectBox.plot(poly).front().show();
-            editor.action = editor.boxSelect;
+            if (e.metaKey) {
+                /* Create note */
+                let n = editor.addNote(
+                    editor.mousePosnToPitch(e),
+                    64,
+                    editor.mousePosnToTime(e),
+                    editor.timeGridSize);
+                editor.action = editor.resizeRight
+                editor.selectObject(n)
+            } else {
+                let poly = [[editor.clickStart.x, editor.clickStart.y],
+                [editor.clickStart.x, editor.clickStart.y],
+                [editor.clickStart.x, editor.clickStart.y],
+                [editor.clickStart.x, editor.clickStart.y]];
+                editor.selectBox.plot(poly).front().show();
+                editor.action = editor.boxSelect;
+            }
         }
     }).mouseup(e => {
         if (editor.action == editor.connector) {
@@ -125,6 +138,17 @@ editor.draw = function() {
         .hide();
     // pass through mouse events
     disableMouseEvents(editor.seqText);
+}
+
+editor.togglePlayback = function() {
+    if (playback.playing) {
+        audio.pause();
+        //playback.pause();
+        playback.stop();
+    } else {
+        audio.playNotes(editor.notes);
+        playback.play();
+    }
 }
 
 editor.glisser = function(seqConnector, e) {
@@ -200,6 +224,31 @@ editor.selectObject = function(obj) {
         obj.selected = true;
         editor.selection = [obj]
     }
+}
+
+editor.play = function(_, ...objs) {
+    let notes = objs.filter(e => e instanceof SeqNote)
+    for (let note of notes) audio.playNote(note)
+} 
+
+editor.resetBend = function(_, ...objs) {
+    let notes = objs.filter(e => e instanceof SeqNote)
+    /* Find minimum note of each tree in the forest */
+    let minimums = new Set(notes);
+    for (let note of notes) {
+        //minimums.add(note)
+        for (let neighbor of note.getAllConnected()) {
+            if (neighbor != note && minimums.has(neighbor)) {
+                if (note.soundingPitch < neighbor.soundingPitch) {
+                    minimums.delete(neighbor)
+                } else {
+                    minimums.delete(note)
+                }
+            }
+        }
+    }
+    console.log(...minimums)
+    for (let m of minimums) m.propagateBend(0)
 }
 
 editor.addNote = function(pitch, velocity, start, duration) {
@@ -279,7 +328,7 @@ editor.move = function(e, objs, forest) {
             note.start = Math.max(n.start + deltaX, 0);
             note.end = note.start + d
             note.redrawPosition(0);
-            note.redrawInputs();
+            note.redrawInputs(0);
             note.redrawOutputs();
         }
     }
@@ -288,7 +337,7 @@ editor.move = function(e, objs, forest) {
             let n = startPosns.get(note);
             note.pitch = (n.pitch + deltaY).clamp(0, editor.numKeys);
             note.redrawPosition(0);
-            note.redrawInputs();
+            note.redrawInputs(0);
             note.redrawOutputs();
         }
     }
@@ -372,7 +421,7 @@ editor.resizeLeft = function(e, ...objs) {
     for (let note of notes) {
         note.start = (startStarts.get(note) + deltaX).clamp(0, note.end-editor.timeGridSize)
         note.updateGraphics(0);
-        note.redrawInputs();
+        note.redrawInputs(0);
     }
 }
 
@@ -418,6 +467,99 @@ editor.bend = function(e, ...objs) {
 }
 
 
+editor.typeEdit = function(_, ...objs) {
+    if (!objs.length) return
+
+    let edges = objs.filter(e => e instanceof SeqEdge)
+    let notes = objs.filter(e=> e instanceof SeqNote)
+     /* Create an input box for the new interval */
+     let foreign = editor.canvas.foreignObject(editor.canvas.width(), editor.canvas.height())
+        .front()
+    let fadeDur = 500;
+    let inputs = [];
+
+    /* Create transparent background */
+    let background = $(document.createElement('div'))
+        .css({
+            width: "100%",
+            height: "100%",
+            padding: 0,
+            margin: 0,
+            backgroundColor: 'rgba(255,255,255,0.6)'
+        }).on('mousedown', ø => {
+            background.fadeOut(fadeDur, ø => {
+                foreign.remove()
+                instructions.remove()
+            })
+            for (let input of inputs) input.fadeOut(fadeDur)
+            instructions.fadeOut(fadeDur)
+        }).on('keydown', e => {
+            if (e.key == 'Enter') {
+                for (let input of inputs) input.trigger('submit')
+                background.trigger('mousedown')
+            } else if (e.key == 'Escape') {
+                background.trigger('mousedown')
+            }
+            e.stopPropagation()
+        }).hide().fadeIn(fadeDur)
+        .appendTo(foreign.node)
+
+    
+    /* Create label text for edges */
+    let instructions = $(document.createElement('p'))
+        .text('Enter interval as cents, equal-tempered value, or frequency ratio, e.g. "386c", "4#12", or "5:4".')
+        .css({
+            position: 'absolute',
+            textAlign: 'center',
+            width: "100%",
+            top: 20,
+            fontFamily: 'Arial',
+            fontSize: 12,
+            letterSpacing: 1,
+            color: "green"
+        }).hide().fadeIn(fadeDur)
+        .appendTo($('.right-container'))
+
+    for (let edge of edges) {
+        let box = createEdgeInputBox(edge)
+        background.append(box)
+        box.trigger('focus')
+        inputs.push(box)
+    }
+}
+
+function createEdgeInputBox(edge) {
+    let oldText = edge.text.text()
+    let len = Math.max(oldText.length, 5)
+    let interval;
+
+    let input = $(document.createElement('input'))
+        .attr({
+            type: 'text',
+            size: len,
+            placeholder: oldText
+        }).css({
+            position: 'absolute',
+            left: edge.midX-10,
+            top: edge.midY-10,
+            backgroundColor: 'none',
+            color: 'black',
+            outline: 'none',
+            borderRadius: 6,
+            padding: 4,
+            border: "2px solid black"
+        }).on('input', ø => {
+            input.attr('size', Math.max(input.val().length, 5))
+            interval = parseIntervalText(input.val())
+            if (interval) input.css('border-color', 'green')
+            else input.css('border-color', 'red')
+        }).on('mousedown', e => {
+            e.stopPropagation()
+        }).on('submit', ø => {
+            interval && edge.updateInterval(interval)
+        }).hide().fadeIn(200)
+    return input;
+}
 
 editor.connector = function(seqConnector, e) {
     let oldPt = editor.clickStart;
@@ -454,6 +596,8 @@ editor.assignMouseHandler = function(parent, svgNode, type) {
     if (handler.exited)  svgNode.mouseout(e =>  handler.exited( e, parent));
     if (handler.clicked) svgNode.mousedown(e => handler.clicked(e, parent));
     if (handler.hovered) svgNode.mousemove(e => handler.hovered(e, parent));
+    
+    if (handler.doubleClick) $(svgNode.node).on('dblclick', e => handler.doubleClick(e, parent))
 }
 
 

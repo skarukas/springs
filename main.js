@@ -74,14 +74,15 @@ grid.draw();
 keyboard.draw();
 playback.draw();
 
+console.log(playback.MIDITimeToSeconds(1))
+
 // handle computer keyboard input
 // have to use keydown instead of keypress
 // to catch cmd+number before the browser default
 $(document).on("keydown", function(e) {
     if (e.key == " ") {
         e.preventDefault();
-        if (playback.playing) playback.pause();
-        else playback.play();
+        editor.togglePlayback()
     } else if (+e.key && e.metaKey) {
         /* check for digits */
         e.preventDefault()
@@ -90,6 +91,12 @@ $(document).on("keydown", function(e) {
     } else if (e.key == 'Backspace') {
         addMessage('Deleting selection')
         editor.applyToSelection(editor.delete, e)
+    } else if (e.key == 'p') {
+        editor.applyToSelection(editor.play);
+    } else if (e.key == 'r') {
+        editor.applyToSelection(editor.resetBend);
+    } else if (e.key == 'Enter') {
+        editor.applyToSelection(editor.typeEdit)
     }
 })
 
@@ -114,10 +121,10 @@ $xRange.on('input', ø => editor.zoom(+$xRange.val(), editor.zoomY));
 
 /* Just adding some demo notes */
 editor.addNote(60, 60, 20, 10);
-editor.addNote(72, 128, 25, 15);
-editor.addNote(0,60,10,20)
+editor.addNote(64, 128, 25, 15);
+editor.addNote(67,60,10,20)
 
-for (let i = 0; i < 20; i++) {
+/* for (let i = 0; i < 20; i++) {
     //let pitch = Math.floor(Math.random() * 60) + 60;
     let pitch = Math.floor(Math.random() * 128);
     let velocity = Math.floor(Math.random() * 128);
@@ -125,4 +132,4 @@ for (let i = 0; i < 20; i++) {
     let start = i + 2 + Math.random() * 4;
     let duration = Math.floor(Math.random() * 40) + 1;
     editor.addNote(pitch, velocity, start, duration);
-}
+} */

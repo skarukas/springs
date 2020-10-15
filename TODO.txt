@@ -14,3 +14,6 @@
     - create function for translating mouseposn into pitch/time
     - need to be able to copy structures too...
 - Allow undo/redo
+- Fix updateGraphics bug -- dividing JI tritone in 3 doesn't update the high note posn (?)
+- Add editable edge intervals
+- Add custom auto-connections

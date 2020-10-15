@@ -80,3 +80,22 @@ export function pitchName(pitch, includeOctave=false) {
     if (includeOctave) result += Math.floor(pitch / 12) - 1
     return result
 }
+
+export function parseIntervalText(text) {
+    let ratioPattern = /^(?<num>[\d\.]+)\s?[:/]\s?(?<den>[\d\.]+)\s*$/
+    let etPattern = /^(?<num>-?[\d\.]+)\s?#\s?(?<den>[\d\.]+)\s*$/
+    let centPatttern = /^(?<cents>-?[\d\.]+)\s*c$/
+
+
+    if (ratioPattern.test(text)) {
+        let g = ratioPattern.exec(text).groups
+        return tune.FreqRatio(parseFloat(g.num), parseFloat(g.den))
+    } else if (etPattern.test(text)) {
+        let g = etPattern.exec(text).groups
+        return tune.ETInterval(parseFloat(g.num), parseFloat(g.den))
+    } else if (centPatttern.test(text)) {
+        let cents = centPatttern.exec(text).groups.cents
+        return cents
+    }
+    return false
+}
