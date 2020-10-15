@@ -2,6 +2,7 @@ import editor from "./editor.js"
 import style from "./style.js"
 import grid from "./grid.js"
 import { mousePosn, simpleBezierPath, normAscendingInterval, guessJIInterval } from "./util.js"
+import SeqNote from "./seqNote.js";
 
 const handlers = {};
 export default handlers
@@ -40,7 +41,11 @@ handlers["note_group"] = {
     },
     clicked(e, note) {
         if (e.metaKey || e.ctrlKey) editor.toggleObjectInSelection(note); 
-        else editor.selectObject(note);
+        else {
+            editor.selectObject(note);
+            let notes = editor.selection.filter(e => e instanceof SeqNote)
+            editor.selectionForest = editor.getAllConnected(notes)
+        }
     }
 }
 
@@ -134,7 +139,9 @@ handlers["note_body"] = {
     },
     clicked(e, note) {
         if (e.altKey) editor.action = editor.bend;
-        else editor.action = editor.move;
+        else {
+            editor.action = editor.move;
+        }
         note.centDisplay.opacity(1);
     },
     hovered(e, note) {

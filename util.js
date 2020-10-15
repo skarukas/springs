@@ -1,3 +1,6 @@
+Number.prototype.clamp = function(lo, hi) {
+    return Math.max(lo, Math.min(this, hi))
+}
 
 export function disableMouseEvents(svgElement) {
     svgElement.css({'pointer-events':'none','user-select': 'none'})

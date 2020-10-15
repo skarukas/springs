@@ -32,7 +32,9 @@ const $divisions = $(document.createElement('input'))
         max: 20,
         value: 2
     })
-    .on('submit', ø => $eqButton.trigger('click'))
+    .on('keydown', e => {
+        if (e.key == 'Enter') $eqButton.trigger('click')
+    })
     .appendTo('#controls-container')
 
 
@@ -89,7 +91,6 @@ $(document).on("keydown", function(e) {
         addMessage('Deleting selection')
         editor.applyToSelection(editor.delete, e)
     }
-    console.log(e.key)
 })
 
 

@@ -17,8 +17,9 @@ editor.notes = [];
 editor.edges = [];
 editor.glisses = [];
 editor.selection = [];
+editor.selectionForest = [];
 editor.action = null;
-editor.grid = 1;
+editor.timeGridSize = 0.5;
 editor.zoomX = 8;
 editor.zoomY = 16;
 editor.width = 1024;
@@ -35,6 +36,8 @@ editor.draw = function() {
     .mousemove(e => {
         switch (editor.action) {
             case editor.move:
+                editor.move(e, editor.selection, editor.selectionForest)
+                break
             case editor.bend:
             case editor.resizeLeft:
             case editor.resizeRight:
@@ -87,20 +90,20 @@ editor.draw = function() {
         //seqMover = null;
         lastY = null;
         startStarts = undefined;
-        startDurs = undefined;
+        startEnds = undefined;
         startPosns = undefined;
 
         editor.setCursorStyle("default");
         editor.action = undefined;
     });
 
-    editor.toLocalX = function(x) {
-        x = editor.canvas.point(x, 0).x;
-        return x / editor.zoomX;
+    editor.mousePosnToTime = function(e) {
+        let x = editor.canvas.point(e.x, 0).x;
+        return Math.floor((x / editor.zoomX) / editor.timeGridSize) * editor.timeGridSize;
     }
-    editor.toLocalY = function(y) {
-        y = editor.canvas.point(0, y).y;
-        return editor.numKeys - y/editor.zoomY;
+    editor.mousePosnToPitch = function(e) {
+        let y = editor.canvas.point(0, e.y).y;
+        return Math.floor(editor.numKeys - y/editor.zoomY);
     }
 
     editor.selectBox = 
@@ -126,8 +129,8 @@ editor.draw = function() {
 
 editor.glisser = function(seqConnector, e) {
     let start = {x: seqConnector.source.xEnd, y: seqConnector.source.y + editor.zoomY / 2};
-    let time = editor.toLocalX(e.x)
-    let pitch = editor.toLocalY(e.y)
+    let time = editor.mousePosnToTime(e)
+    let pitch = editor.mousePosnToPitch(e)
 
     /* Stop from extending to a note before the start point */    
     let x = Math.max(time * editor.zoomX, start.x);
@@ -192,7 +195,6 @@ editor.deselectAllObjects = function() {
 }
 
 editor.selectObject = function(obj) {
-    console.log(editor.selection)
     if (obj && !editor.selection.includes(obj)) {
         editor.deselectAllObjects()
         obj.selected = true;
@@ -221,6 +223,7 @@ editor.connect = function(note1, note2, by) {
     if (edge) {
         edge.draw(editor.canvas);
         edge.propagateBend(note1.bend);
+        editor.toggleObjectInSelection(edge)
     } else {
         addMessage('Cannot connect notes that are already connected.', 'orange')
     }
@@ -238,43 +241,51 @@ editor.gliss = function(start, end) {
 }
 
 
+editor.getAllConnected = function(notes) {
+    let forest = new Set()
+    for (let note of notes) {
+        if (!forest.has(note)) {
+            let tree = note.getAllConnected()
+            for (let e of tree) forest.add(e)
+        }
+    }
+    return [...forest]
+}
+
 editor.applyToSelection = function(fn, param) {
-    let objs = editor.selection;
-    let curr = editor.selectedObject;
-    if (objs.includes(curr) || !curr) fn(param, ...objs);
-    else if (curr) editor.deselectAllObjects(), fn(param, curr);
+    fn(param, ...editor.selection);
 }
 
 /* The following functions are meant to be used with applyToSelection() */
 
 let startPosns;
 let lastDeltas;
-editor.move = function(e, ...objs) {
+editor.move = function(e, objs, forest) {
     let notes = objs.filter(e => e instanceof SeqNote)
-    //notes = editor.getAllConnected(notes); // move all those within the tree
     e = mousePosn(e)
     if (!startPosns) {
         startPosns = new Map();
         lastDeltas = {x:0, y:0};
-        for (let note of notes) startPosns.set(note, { start: note.start, pitch: note.pitch});
+        for (let note of forest) startPosns.set(note, {start: note.start, pitch: note.pitch});
     }
 
-    let deltaX = editor.toLocalX(e.x) - editor.toLocalX(editor.clickStart.x);
-    deltaX = Math.round(deltaX / editor.grid) * editor.grid;
-    let deltaY = Math.round(editor.toLocalY(e.y) - editor.toLocalY(editor.clickStart.y));
+    let deltaX = editor.mousePosnToTime(e) - editor.mousePosnToTime(editor.clickStart);
+    let deltaY = Math.round(editor.mousePosnToPitch(e) - editor.mousePosnToPitch(editor.clickStart));
     if (lastDeltas.x != deltaX) {
         for (let note of notes) {
             let n = startPosns.get(note);
+            let d = note.duration;
             note.start = Math.max(n.start + deltaX, 0);
+            note.end = note.start + d
             note.redrawPosition(0);
             note.redrawInputs();
             note.redrawOutputs();
         }
     }
     if (lastDeltas.y != deltaY) {
-        for (let note of notes) {
+        for (let note of forest) {
             let n = startPosns.get(note);
-            note.pitch = Math.min(Math.max(n.pitch + deltaY, 0), editor.numKeys);
+            note.pitch = (n.pitch + deltaY).clamp(0, editor.numKeys);
             note.redrawPosition(0);
             note.redrawInputs();
             note.redrawOutputs();
@@ -299,11 +310,8 @@ editor.equallyDivide = function(n, ...objs) {
         let pair = [e.a, e.b].sort(notesAscending)
         pairs.set(pair[0], pair[1])
     }
-    console.log(pairs)
-    for (let [a, b] of pairs.entries()) {
-        console.log(a,b)
-        equallyDividePair(a, b)
-    }
+
+    for (let [a, b] of pairs.entries()) equallyDividePair(a, b)
 
     function equallyDividePair(note1, note2) {
         if (note1.soundingPitch == note2.soundingPitch) return;
@@ -351,48 +359,45 @@ editor.tuneAsPartials = function(_, ...objs) {
 let startStarts;
 editor.resizeLeft = function(e, ...objs) {
     let notes = objs.filter(e => e instanceof SeqNote)
-    
+    e = mousePosn(e)
+
     if (!startStarts) {
         startStarts = new Map();
         for (let note of notes) startStarts.set(note, note.start);
     }
 
-    let deltaX = editor.toLocalX(e.x - editor.clickStart.x);
+    let deltaX = editor.mousePosnToTime(e) - editor.mousePosnToTime(editor.clickStart);
     for (let note of notes) {
-        let start = Math.round((startStarts.get(note) + deltaX) / editor.grid) * editor.grid;
-        note.duration = Math.max(note.duration + (note.start - start), editor.grid);
-        if (note.duration > editor.grid) note.start = start;
+        note.start = (startStarts.get(note) + deltaX).clamp(0, note.end-editor.timeGridSize)
         note.updateGraphics(0);
         note.redrawInputs();
-        for (let child of note.neighbors) child.updateGraphics(0);
     }
 }
 
-let startDurs;
+let startEnds;
 editor.resizeRight = function(e, ...objs) {
     let notes = objs.filter(e => e instanceof SeqNote)
-    if (!startDurs) {
-        startDurs = new Map();
-        for (let note of notes) startDurs.set(note, note.duration);
+    e = mousePosn(e)
+
+    if (!startEnds) {
+        startEnds = new Map();
+        for (let note of notes) startEnds.set(note, note.end);
     }
 
-    let deltaX = editor.toLocalX(e.x - editor.clickStart.x);
+    let deltaX = editor.mousePosnToTime(e) - editor.mousePosnToTime(editor.clickStart);
     for (let note of notes) {
-        let dur = Math.round((startDurs.get(note) + deltaX) / editor.grid) * editor.grid;
-        note.duration = Math.max(dur, editor.grid);
+        note.end = (startEnds.get(note) + deltaX).clamp(note.start+editor.timeGridSize, editor.width)
         note.updateGraphics(0);
         note.redrawOutputs();
     }
 }
 
 editor.delete = function(e, ...objs) {
-    console.log('removed',...objs)
     let removed = new Set(objs)
     for (let obj of objs) obj.remove()
     let notRemoved = e => !removed.has(e)
     editor.edges = editor.edges.filter(notRemoved);
     editor.notes = editor.notes.filter(notRemoved);
-    console.log(editor.notes)
     editor.deselectAllObjects()
 }
 
@@ -462,5 +467,5 @@ editor.show = function(show) {
 
 // for debugging purposes
 window.editor = editor;
-window.notes = () => editor.notes;
-window.edges = () => editor.edges;
+window.notes = ø => editor.notes;
+window.edges = ø => editor.edges;

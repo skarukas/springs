@@ -3,16 +3,21 @@ import { disableMouseEvents, guessJIInterval } from "./util.js"
 import SeqEdge from "./seqEdge.js"
 import style from "./style.js"
 
+const graph = new Map()
+
 export default class SeqNote {
     constructor(pitch, velocity, start, duration) {
         this.pitch = pitch;
         this.velocity = velocity;
         this.start = start;
-        this.duration = duration;
+        this.end = start + duration
         this.children = [];
         this.glissInputs = [];
         this.glissOutputs = [];
         this._bend = 0;
+    }
+    get duration() {
+        return this.end-this.start
     }
     set bend(val) {
         this._bend = val;
@@ -27,7 +32,7 @@ export default class SeqNote {
         return this.start * this.seq.zoomX;
     }
     get xEnd() {
-        return (this.start + this.duration) * this.seq.zoomX;
+        return this.end * this.seq.zoomX;
     }
     get y() {
         return (this.seq.numKeys - (this.pitch+1 + this._bend)) * this.seq.zoomY;
@@ -72,6 +77,8 @@ export default class SeqNote {
     }
     redrawInputs() {
         for (let g of this.glissInputs) g.redrawPosition()
+        for (let neighbor of this.neighbors) neighbor.updateGraphics(0)
+        this.parent && this.parent.updateGraphics(0)
     }
     redrawOutputs() {
         for (let g of this.glissOutputs) g.redrawPosition()
@@ -232,6 +239,7 @@ export default class SeqNote {
                 }
             }
         }
+        if (options.returnAll) return [...visited]
         return options.failureVal();
     }
     connectTo(other, by = guessJIInterval(this.pitch, other.pitch)) {
@@ -239,8 +247,8 @@ export default class SeqNote {
 
         if (this.isConnectedTo(other) || other.parent) return null;
 
-        other.parent = this;
         let edge = new SeqEdge(this, other, by);
+        other.parent = edge;
         this.children.push(edge);
         this.seq.edges.push(edge);
         // propagate own bend to subtree
@@ -262,8 +270,14 @@ export default class SeqNote {
             || other.hasDescendant(this) 
             || this.hasSibling(other); 
     }
+    getAllConnected() {
+        return this.BFS({
+            predicate: () => false,
+            returnAll: true
+        });
+    }
     hasSibling(other) {
-        return this.parent?.children.find(e => e.b == other);
+        return this.parent?.a.children.find(e => e.b == other);
     }
     // DFS
     hasDescendant(other) {
@@ -300,16 +314,13 @@ export default class SeqNote {
         });
     }
     remove() {
-        console.log("removed", this.pitch)
         this.bend = 0;
         this.group.remove()
         this.shadowRect.remove()
-        if (this.parent) this.parent.removeChild(this);
-        for (let child of this.children) child.b.resetBend();
-        // remove all edges??
+        if (this.parent) this.parent.a.removeChild(this);
+        for (let child of this.children) child.remove()
     }
     removeChild(node) {
         this.children = this.children.filter(edge => edge.b != node);
-        console.log("children:", this.children)
     }
 }

@@ -1,0 +1,16 @@
+- Fix intersection for non-rectangles (currently using SVG.checkIntersection which only checks bounding boxes)
+- Make move action operate upon all notes, selected or unselected in each forest
+    - keep a set that stores notes found in the forest
+    - for each note in selection, if it's not the set then add its tree to the set
+- Make move action update edge display
+- Implement network graph as opposed to tree structure in notes/edges
+- Update edges when a note is deleted (sorta fixed)
+    - Still need to remove edges from editor.edges if they're removed this way
+    - Maybe delegate edge removal to editor?
+- How to reset notes when edge is deleted? Reset bend?? Leave bend?
+- Trigger equal division when pressing Enter in the number input
+- Make color more visible
+- Allow copy/paste
+    - create function for translating mouseposn into pitch/time
+    - need to be able to copy structures too...
+- Allow undo/redo
