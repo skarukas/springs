@@ -1,6 +1,7 @@
 import { simpleBezierPath, normAscendingInterval, disableMouseEvents } from "./util.js"
 import style from "./style.js"
 import editor from "./editor.js";
+import SeqNote from "./seqNote.js";
 
 export default class SeqEdge {
     constructor(a, b, interval) {
@@ -12,15 +13,15 @@ export default class SeqEdge {
         if (this.line) {
             let line = animateDuration? this.line.animate(animateDuration) : this.line;
             let text = animateDuration? this.text.animate(animateDuration) : this.text;
-
-            let dist = Math.abs(this.a.start - this.b.start);
+            
+            let dist = Math.abs(this.a.start-this.b.start);
             let width = 4 * (1 - Math.tanh(dist / 64)) + 1;
             let path = simpleBezierPath(
                 {x: this.x1, y: this.y1},
                 {x: this.x2, y: this.y2}, 
                 'vertical');
             line.plot(path)
-                .stroke({width: width});
+                .stroke({width});
             text.center(this.midX, this.midY)
         }
     }
@@ -55,11 +56,13 @@ export default class SeqEdge {
             {x: this.x1, y: this.y1},
             {x: this.x2, y: this.y2}, 
             'vertical');
-
+        let dist = Math.abs(this.a.start-this.b.start);
+        let width = 4 * (1 - Math.tanh(dist / 64)) + 1;
         this.line = canvas.path(path)
             .stroke(style.editorLine)
             .opacity(0.7)
             .fill('none')
+        this.line.stroke({width})
         
         editor.assignMouseHandler(this, this.line, "edge_line")
         this.text = canvas.text(normAscendingInterval(this.interval).toString())
@@ -77,16 +80,21 @@ export default class SeqEdge {
         this.text.show();
     }
     remove() {
-        this.a.removeChild(this.b);
-        this.b.parent = undefined; ////FIX THIS WHEN U FIX NEIGHBORS
-        this.b.resetBend();
         this.line.remove();
         this.text.remove();
-    }
-    // offset child and all its children by this bend amount
-    propagateBend(bend, animateDuration) {
-        this.b.propagateBend(this.getBend() + bend, animateDuration);
-        this.updateGraphics(animateDuration);
+        SeqNote.graph.get(this.a).delete(this.b)
+        SeqNote.graph.get(this.b).delete(this.a)
+        
+        /* Retune the higher note */
+        let min, max;
+        if (this.a.pitch < this.b.pitch) {
+            min = this.a
+            max = this.b
+        } else {
+            min = this.b
+            max = this.a   
+        }
+        max.propagateBend(0, 300, [min]);
     }
     // return the amount the top note will be bent
     getBend() {

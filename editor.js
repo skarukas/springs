@@ -211,7 +211,8 @@ editor.addNote = function(pitch, velocity, start, duration) {
 }
 
 editor.disconnect = function(note1, note2) {
-    note1.disconnectFrom(note2);
+    let removedEdge = note1.disconnectFrom(note2);
+    if (removedEdge) editor.delete(null, removedEdge)
 }
 
 editor.setCursorStyle = function(val) {
@@ -219,10 +220,10 @@ editor.setCursorStyle = function(val) {
 }
 
 editor.connect = function(note1, note2, by) {
-    let edge = note1.connectTo(note2, by);
+    let edge = note1.connectTo(note2, by, 0);
     if (edge) {
+        editor.edges.push(edge)
         edge.draw(editor.canvas);
-        edge.propagateBend(note1.bend);
         editor.toggleObjectInSelection(edge)
     } else {
         addMessage('Cannot connect notes that are already connected.', 'orange')
@@ -315,13 +316,14 @@ editor.equallyDivide = function(n, ...objs) {
 
     function equallyDividePair(note1, note2) {
         if (note1.soundingPitch == note2.soundingPitch) return;
-
         let interval = note1.getIntervalTo(note2).divide(n);
+
         const incStep = (a, b, steps) => (b - a) / steps;
         let velocityStep = incStep(note1.velocity, note2.velocity, n);
         let startStep = incStep(note1.start, note2.start, n);
         let durationStep = incStep(note1.duration, note2.duration, n);
         editor.disconnect(note1, note2);
+
         let prev = note1;
         for (let i = 1; i < n; i++) {
             let pitch = Math.round(prev.asNote.noteAbove(interval).asET().pitch);

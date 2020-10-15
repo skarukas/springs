@@ -3,18 +3,18 @@ import { disableMouseEvents, guessJIInterval } from "./util.js"
 import SeqEdge from "./seqEdge.js"
 import style from "./style.js"
 
-const graph = new Map()
-
 export default class SeqNote {
+    static graph = new Map()
+
     constructor(pitch, velocity, start, duration) {
         this.pitch = pitch;
         this.velocity = velocity;
         this.start = start;
         this.end = start + duration
-        this.children = [];
         this.glissInputs = [];
         this.glissOutputs = [];
         this._bend = 0;
+        SeqNote.graph.set(this, new Map())
     }
     get duration() {
         return this.end-this.start
@@ -53,7 +53,7 @@ export default class SeqNote {
         return this.y + 0.5 * this.height;
     }
     get neighbors() {
-        return this.children;
+        return SeqNote.graph.get(this).entries()
     }
     get asNote() {
         return tune.ETPitch(this.soundingPitch);
@@ -77,13 +77,13 @@ export default class SeqNote {
     }
     redrawInputs() {
         for (let g of this.glissInputs) g.redrawPosition()
-        for (let neighbor of this.neighbors) neighbor.updateGraphics(0)
-        this.parent && this.parent.updateGraphics(0)
+        for (let [_, edge] of this.neighbors) edge.updateGraphics(0)
     }
     redrawOutputs() {
         for (let g of this.glissOutputs) g.redrawPosition()
     }
     updateGraphics(animateDuration = 300) {
+        console.log("updateGraphics called on",this.pitch)
         let rect = this.rect, 
             shadowRect = this.shadowRect,
             handle = this.handle, 
@@ -203,9 +203,15 @@ export default class SeqNote {
     getIntervalTo(other) {
         return this.BFS({
             initialStore: [tune.ETInterval(0)],
-            predicate: child => child.b == other,
-            combine: (edge, interval) => [interval.add(edge.interval)],
-            successVal: (edge, interval) => interval.add(edge.interval),
+            predicate: (edge, child) => child == other,
+            combine: (edge, child, interval) => {
+                if (edge.b == child) return [interval.add(edge.interval)]
+                else return [interval.add(edge.interval.inverse())]
+            },
+            successVal: (edge, child, interval) => {
+                if (edge.b == child) return interval.add(edge.interval)
+                else return interval.add(edge.interval.inverse())
+            },
             failureVal: () => tune.ETInterval(other.soundingPitch - this.soundingPitch)
         });
     }
@@ -213,62 +219,64 @@ export default class SeqNote {
      * StoreVals := [...]
      * 
      * initialStore : [...StoreVals]
-     * predicate : Edge -> Boolean
-     * combine: Edge, ...StoreVals -> [...StoreVals]
-     * successVal : Edge, ...StoreVals -> S
+     * predicate : [Edge, Note] -> Boolean
+     * combine: Edge, Note, ...StoreVals -> [...StoreVals]
+     * successVal : Edge, Note, ...StoreVals -> S
      * failureVal : () -> S
      * */
     BFS(options) {
 
+        options.noVisit = options.noVisit || []
         options.initialStore = options.initialStore || [null];
-        options.combine = options.combine || (edge => []);
-        options.successVal = options.successVal || (edge => edge);
-        options.failureVal = options.failureVal || (() => null);
+        options.combine = options.combine || ((edge, child) => []);
+        options.successVal = options.successVal || ((edge, child) => child);
+        options.failureVal = options.failureVal || (ø => null);
 
-        let visited = new Set();
+        let visited = new Set(options.noVisit);
         let fringe = [[this, ...options.initialStore]];
         
         while (fringe.length) {
             let [node, ...storeVals] = fringe.pop();
             visited.add(node);
-            for (let child of node.neighbors) {
-                if (!(child.b in visited)) {
-                    let newStore = options.combine(child, ...storeVals);
-                    if (options.predicate(child)) return options.successVal(child, ...storeVals);
-                    else fringe.unshift([child.b, ...newStore]);
+            for (let [child, edge] of node.neighbors) {
+                if (!visited.has(child)) {
+                    let newStore = options.combine(edge, child, ...storeVals);
+                    if (options.predicate(edge, child)) return options.successVal(edge, child, ...storeVals);
+                    else fringe.unshift([child, ...newStore]);
                 }
             }
         }
         if (options.returnAll) return [...visited]
         return options.failureVal();
     }
-    connectTo(other, by = guessJIInterval(this.pitch, other.pitch)) {
-        // does not really account for other already having a parent
-
-        if (this.isConnectedTo(other) || other.parent) return null;
-
+    connectTo(other, by = guessJIInterval(this.pitch, other.pitch), animateDuration=300) {
+        if (this.isConnectedTo(other)) return null;
         let edge = new SeqEdge(this, other, by);
-        other.parent = edge;
-        this.children.push(edge);
-        this.seq.edges.push(edge);
-        // propagate own bend to subtree
+        let oldNeighbors = [...SeqNote.graph.get(this).keys()]
+
+        SeqNote.graph.get(this).set(other, edge)
+        SeqNote.graph.get(other).set(this, edge)
+        this.propagateBend(this.bend, animateDuration, oldNeighbors)
 
         return edge;
     }
     disconnectFrom(other) {
         return this.BFS({
-            predicate: edge => edge.b == other,
-            successVal: edge => {
+            predicate: (edge, child) => child == other,
+            successVal: (edge, child) => {
                 edge.remove()
-                return true;
+                console.log("deleted", edge)
+                return edge;
             },
-            failureVal: () => false,
+            failureVal: ø => false,
         });
     }
     isConnectedTo(other) {
-        return this.hasDescendant(other) 
-            || other.hasDescendant(this) 
-            || this.hasSibling(other); 
+        return this.BFS({
+            predicate: (edge, child) => child == other,
+            successVal: ø => true,
+            failureVal: ø => false,
+        });
     }
     getAllConnected() {
         return this.BFS({
@@ -276,39 +284,23 @@ export default class SeqNote {
             returnAll: true
         });
     }
-    hasSibling(other) {
-        return this.parent?.a.children.find(e => e.b == other);
-    }
-    // DFS
-    hasDescendant(other) {
-        if (other == this) return true;
-
-        for (let child of this.children) {
-            if (child.b.isConnectedTo(other)) return true;
-        }
-        return false; 
-    }
-    resetBend() {
-        this.propagateBend(0, 0);
-    }
     // offset all children by this bend amount
-    propagateBend(bend, animateDuration = 300) {
+    propagateBend(bend, animateDuration = 300, awayFrom=[]) {
         this.bend = bend;
         this.updateGraphics(animateDuration);
         this.redrawInputs();
         this.redrawOutputs();
 
         this.BFS({
+            noVisit: awayFrom,
             initialStore: [bend],
             predicate: () => false,
-            combine: (edge, bend) => {
-                let note = edge.b;
+            combine: (edge, child, bend) => {
                 let newBend = edge.getBend() + bend
-                note.bend = newBend;
-                note.updateGraphics(animateDuration);
-                note.redrawInputs();
-                note.redrawOutputs();
-                edge.updateGraphics(animateDuration);
+                child.bend = newBend;
+                child.redrawInputs();
+                child.redrawOutputs();
+                child.updateGraphics(animateDuration);
                 return [newBend];
             }
         });
@@ -317,10 +309,11 @@ export default class SeqNote {
         this.bend = 0;
         this.group.remove()
         this.shadowRect.remove()
-        if (this.parent) this.parent.a.removeChild(this);
-        for (let child of this.children) child.remove()
-    }
-    removeChild(node) {
-        this.children = this.children.filter(edge => edge.b != node);
+        for (let [_, edge] of this.neighbors) {
+            edge.remove()
+            editor.delete(null, edge)
+        }
+        for (let map of SeqNote.graph.values()) map.delete(this)
+        SeqNote.graph.delete(this)
     }
 }
