@@ -40,9 +40,16 @@ handlers["note_group"] = {
         }   
     },
     clicked(e, note) {
-        if (e.metaKey || e.ctrlKey) editor.toggleObjectInSelection(note); 
-        else {
-            editor.selectObject(note);
+        if (e.metaKey || e.ctrlKey) {
+            editor.toggleObjectInSelection(note); 
+        } else {
+            if (e.altKey) {
+                editor.copySelection()
+                editor.paste()
+                editor.action = editor.move
+            } else {
+                editor.selectObject(note);
+            }
             let notes = editor.selection.filter(e => e instanceof SeqNote)
             editor.selectionForest = editor.getAllConnected(notes)
         }
@@ -138,14 +145,15 @@ handlers["note_body"] = {
         if (editor.action != editor.bend) editor.setCursorStyle("default");
     },
     clicked(e, note) {
-        if (e.altKey) editor.action = editor.bend;
-        else {
+        if (e.shiftKey) {
+            editor.action = editor.bend;
+        } else {
             editor.action = editor.move;
         }
         note.centDisplay.opacity(1);
     },
     hovered(e, note) {
-        if (e.altKey) editor.setCursorStyle("ns-resize");
+        if (e.shiftKey) editor.setCursorStyle("ns-resize");
         else editor.setCursorStyle("move");
         //editor.setConnectorDestination(e, note);
     }

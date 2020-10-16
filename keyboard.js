@@ -1,3 +1,4 @@
+import audio from "./audio-playback.js";
 import editor from "./editor.js"
 import grid from "./grid.js";
 import style from "./style.js"
@@ -66,14 +67,17 @@ class PianoKey {
             .mouseout(() => {
                 this.keyRect.fill(this.displayOptions.color);
                 grid.highlightPitch(this.pitch, false, this.displayOptions);
+                audio.noteOff(this.pitch)
             })
             .mousedown(() => {
                 this.keyRect.fill(this.displayOptions.clickColor);
                 grid.highlightPitch(this.pitch, true, this.displayOptions);
+                audio.noteOn(this.pitch)
             })
             .mouseup(() => {
                 this.keyRect.fill(this.displayOptions.color);
                 grid.highlightPitch(this.pitch, false, this.displayOptions);
+                audio.noteOff(this.pitch)
             });
 
         if (!this.isNatural) this.keyRect.front();

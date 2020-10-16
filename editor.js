@@ -27,6 +27,7 @@ editor.zoomY = 16;
 editor.width = 1024;
 editor.numKeys = 128;
 editor.selectedObject = null;
+editor.mousePosn = undefined;
 
 const svg = SVG()
     .addTo('#piano-roll')
@@ -53,6 +54,7 @@ editor.draw = function() {
                 editor.action(editor.seqConnector, e);
                 break;
         }
+        editor.mousePosn = {x: e.x, y:e.y}
         //if (!playback.playing && e.buttons == 1) playback.position = e.offsetX;
     }).mousedown(e => {
         editor.clickStart = mousePosn(e);
@@ -140,6 +142,108 @@ editor.draw = function() {
     disableMouseEvents(editor.seqText);
 }
 
+editor.copySelection = function() {
+    let clipboard = []
+    let notes = editor.selection.filter(e => e instanceof SeqNote)
+    let edges = []
+    let seen = new Set();
+
+    /* Add necessary edges (edges between selected notes) */
+    for (let note of notes) {
+        if (!seen.has(note)) {
+            for (let [neigh, edge] of note.neighbors) {
+                if (seen.has(neigh)) {
+                    edges.push(edge)
+                    seen.add(neigh)
+                }
+            }
+            seen.add(note)
+        }
+    }
+
+
+    // returns the index of the inserted note
+    // and whether or not the note was a new addition
+    function addNoteToClipboard(note) {
+        let copy = {
+            pitch: note.pitch,
+            velocity: note.velocity,
+            start: note.start,
+            duration: note.duration
+        }
+        let idx = -1;
+        for (let i = 0; i < clipboard.length; i++) {
+            if (JSON.stringify(clipboard[i]) == JSON.stringify(copy)) {
+                idx = i;
+                break;
+            }
+        }
+        if (idx == -1) return [true, clipboard.push(copy) - 1]
+        else return [false, idx]
+    }
+
+    let edgesToAdd = []
+    /* Add the ones that are connected */
+    for (let edge of edges) {
+        let [isAdded1, id1] = addNoteToClipboard(edge.a)
+        let [isAdded2, id2] = addNoteToClipboard(edge.b)
+        /*  :(   */
+        if (isAdded1 || isAdded2) {
+            edgesToAdd.push({
+                id1,
+                id2,
+                interval: edge.interval
+            })
+        }
+    }
+
+    /* Add the ones that are not connected */
+    notes.map(addNoteToClipboard)
+    clipboard.push(...edgesToAdd)
+    editor.clipboard = clipboard;
+}
+
+
+editor.paste = function() {
+    editor.deselectAllObjects()
+
+    let p = editor.mousePosn;
+    let pitch = editor.mousePosnToPitch(p)
+    let time = editor.mousePosnToTime(p)
+    let notes = editor.clipboard.filter(e => e.pitch != undefined)
+    let edges = editor.clipboard.filter(e => e.interval != undefined)
+
+    /* Paste by setting position of the leftmost element to mouse posn */
+    let minStart = Infinity;
+    let maxPitch = 0;
+    for (let note of notes) {
+        minStart = Math.min(minStart, note.start)
+        maxPitch = Math.max(maxPitch, note.pitch)
+    }
+
+    /* Replace skeleton notes with real notes */
+    for (let i = 0; i < notes.length; i++) {
+        notes[i] = editor.addNote(
+            (notes[i].pitch - maxPitch) + pitch, 
+            notes[i].velocity,
+            (notes[i].start - minStart) + time,
+            notes[i].duration)
+        editor.toggleObjectInSelection(notes[i])
+    }
+
+    /* 
+        Create edges, accessing the indices of the changed 
+        note array.
+    */
+    for (let ed of edges) {
+        let edge = editor.connect(
+            notes[ed.id1], 
+            notes[ed.id2], 
+            ed.interval)
+        editor.toggleObjectInSelection(edge)
+    }
+}
+
 editor.togglePlayback = function() {
     if (playback.playing) {
         audio.pause();
@@ -218,6 +322,13 @@ editor.deselectAllObjects = function() {
     //editor.selectedObject = undefined
 }
 
+editor.selectAll = function() {
+    editor.selection = editor.notes
+        .concat(editor.edges)
+        .concat(editor.glisses);
+    for (let x of editor.selection) x.selected = true;
+}
+
 editor.selectObject = function(obj) {
     if (obj && !editor.selection.includes(obj)) {
         editor.deselectAllObjects()
@@ -247,7 +358,6 @@ editor.resetBend = function(_, ...objs) {
             }
         }
     }
-    console.log(...minimums)
     for (let m of minimums) m.propagateBend(0)
 }
 
@@ -277,6 +387,7 @@ editor.connect = function(note1, note2, by) {
     } else {
         addMessage('Cannot connect notes that are already connected.', 'orange')
     }
+    return edge;
 }
 
 editor.gliss = function(start, end) {
@@ -311,6 +422,8 @@ editor.applyToSelection = function(fn, param) {
 let startPosns;
 let lastDeltas;
 editor.move = function(e, objs, forest) {
+    if (!forest.length) forest = objs;
+
     let notes = objs.filter(e => e instanceof SeqNote)
     e = mousePosn(e)
     if (!startPosns) {
@@ -476,11 +589,13 @@ editor.typeEdit = function(_, ...objs) {
      let foreign = editor.canvas.foreignObject(editor.canvas.width(), editor.canvas.height())
         .front()
     let fadeDur = 500;
-    let inputs = [];
+    let noteBoxes = [];
+    let edgeBoxes = [];
 
     /* Create transparent background */
     let background = $(document.createElement('div'))
         .css({
+            position: 'relative',
             width: "100%",
             height: "100%",
             padding: 0,
@@ -491,11 +606,15 @@ editor.typeEdit = function(_, ...objs) {
                 foreign.remove()
                 instructions.remove()
             })
-            for (let input of inputs) input.fadeOut(fadeDur)
+            for (let note of noteBoxes) note.fadeOut(fadeDur)
+            for (let edge of edgeBoxes) edge.fadeOut(fadeDur)
             instructions.fadeOut(fadeDur)
+            //$('input').attr('disabled', false)
+            $('input').fadeIn(500)
         }).on('keydown', e => {
             if (e.key == 'Enter') {
-                for (let input of inputs) input.trigger('submit')
+                for (let note of noteBoxes) note.trigger('submit')
+                for (let edge of edgeBoxes) edge.trigger('submit')
                 background.trigger('mousedown')
             } else if (e.key == 'Escape') {
                 background.trigger('mousedown')
@@ -504,8 +623,6 @@ editor.typeEdit = function(_, ...objs) {
         }).hide().fadeIn(fadeDur)
         .appendTo(foreign.node)
 
-    
-    /* Create label text for edges */
     let instructions = $(document.createElement('p'))
         .text('Enter interval as cents, equal-tempered value, or frequency ratio, e.g. "386c", "4#12", or "5:4".')
         .css({
@@ -524,41 +641,81 @@ editor.typeEdit = function(_, ...objs) {
         let box = createEdgeInputBox(edge)
         background.append(box)
         box.trigger('focus')
-        inputs.push(box)
+            .on('input', ø => {
+                box.attr('size', Math.max(box.val().length, 5))
+                let interval = parseIntervalText(box.val())
+                let color = interval? 'green' : 'red';
+                for (let ed of edgeBoxes) {
+                    ed.css('border-color', color)
+                    ed.val(box.val())
+                }
+            })
+        edgeBoxes.push(box)
     }
+
+    for (let note of notes) {
+        let box = createNoteInputBox(note)
+        background.append(box)
+        box.trigger('focus')
+            .on('input', ø => {
+                let v = parseInt(box.val())
+                let color = (v < 128) ? 'green' : 'red';
+                for (let n of noteBoxes) {
+                    n.css('border-color', color)
+                    n.val(box.val())
+                }
+            })
+        noteBoxes.push(box)
+    }
+
+    $('input[type=range]').fadeOut(500)
 }
 
 function createEdgeInputBox(edge) {
     let oldText = edge.text.text()
-    let len = Math.max(oldText.length, 5)
-    let interval;
 
     let input = $(document.createElement('input'))
         .attr({
             type: 'text',
-            size: len,
+            size: oldText.length,
             placeholder: oldText
         }).css({
-            position: 'absolute',
             left: edge.midX-10,
             top: edge.midY-10,
-            backgroundColor: 'none',
-            color: 'black',
-            outline: 'none',
-            borderRadius: 6,
-            padding: 4,
-            border: "2px solid black"
-        }).on('input', ø => {
-            input.attr('size', Math.max(input.val().length, 5))
-            interval = parseIntervalText(input.val())
-            if (interval) input.css('border-color', 'green')
-            else input.css('border-color', 'red')
         }).on('mousedown', e => {
             e.stopPropagation()
         }).on('submit', ø => {
+            let interval = parseIntervalText(input.val())
             interval && edge.updateInterval(interval)
         }).hide().fadeIn(200)
+        .addClass("text-input")
     return input;
+}
+
+function createNoteInputBox(note) {
+    let velocityInput = $(document.createElement('input'))
+        .attr({
+            type: 'text',
+            size: 3,
+            maxlength: 3,
+            placeholder: note.pitch
+        })/* .on('input', ø => {
+            if (velocityInput.val()) velocityInput.css('border-color', 'green')
+            else velocityInput.css('border-color', 'red')
+        }) */.on('mousedown', e => {
+            e.stopPropagation()
+        }).on('submit', ø => {
+            note.velocity = parseInt(velocityInput.val()) || note.velocity;
+            note.updateGraphics()
+        }).on('keypress', e => {
+            if (isNaN(parseInt(e.key))) e.preventDefault()
+        }).hide().fadeIn(200)
+        .addClass("text-input")
+    velocityInput.css({
+        left: (note.xEnd + note.x)/2 - 15,
+        top: note.y-5,
+    })
+    return velocityInput;
 }
 
 editor.connector = function(seqConnector, e) {

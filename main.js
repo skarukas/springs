@@ -33,7 +33,10 @@ const $divisions = $(document.createElement('input'))
         value: 2
     })
     .on('keydown', e => {
-        if (e.key == 'Enter') $eqButton.trigger('click')
+        if (e.key == 'Enter') {
+            $eqButton.trigger('click')
+            e.stopPropagation()
+        }
     })
     .appendTo('#controls-container')
 
@@ -97,6 +100,18 @@ $(document).on("keydown", function(e) {
         editor.applyToSelection(editor.resetBend);
     } else if (e.key == 'Enter') {
         editor.applyToSelection(editor.typeEdit)
+    } else if (e.metaKey) {
+        /* Cmd + ... shortcuts */
+        if (e.key == 'a') {
+            e.preventDefault();
+            editor.selectAll();
+        } else if (e.key == 'c') {
+            e.preventDefault();
+            editor.copySelection()
+        } else if (e.key == 'v') {
+            e.preventDefault();
+            editor.paste(e)
+        }
     }
 })
 

@@ -8,13 +8,21 @@ export default class SeqNote {
 
     constructor(pitch, velocity, start, duration) {
         this.pitch = pitch;
-        this.velocity = velocity;
+        this._velocity = velocity;
         this.start = start;
         this.end = start + duration
         this.glissInputs = [];
         this.glissOutputs = [];
         this._bend = 0;
         SeqNote.graph.set(this, new Map())
+    }
+    set velocity(val) {
+        this._velocity = val.clamp(0, 128);
+        this.shadowRect.fill(style.noteShadowFill(this))
+        this.rect.fill(style.noteFill(this))
+    }
+    get velocity() {
+        return this._velocity
     }
     get frequency() {
         return tune.Util.ETToFreq(this.soundingPitch)
@@ -268,7 +276,6 @@ export default class SeqNote {
             predicate: (edge, child) => child == other,
             successVal: (edge, child) => {
                 edge.remove()
-                console.log("deleted", edge)
                 return edge;
             },
             failureVal: ø => false,

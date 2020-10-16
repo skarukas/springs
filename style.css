@@ -84,3 +84,12 @@ body {
     width: 60px;
 }
 
+.text-input {
+    position: absolute;
+    background-color: none;
+    color: black;
+    outline: none;
+    border-radius: 6px;
+    padding: 4px;
+    border: 2px solid black;
+}
