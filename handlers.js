@@ -80,14 +80,14 @@ handlers["note_left_handle"] = {
 
 handlers["note_right_handle"] = {
     entered(e, note) {
-        if (e.altKey) editor.setCursorStyle("all-scroll");
+        if (e.shiftKey) editor.setCursorStyle("all-scroll");
         else editor.setCursorStyle("col-resize");
     },
     exited(e, note) {
         if (editor.action != editor.resizeRight) editor.setCursorStyle("default");
     },
     clicked(e, note) {
-        if (e.altKey) {
+        if (e.shiftKey) {
             editor.action = editor.glisser;
             editor.seqConnector.source = note;
             let color = style.noteFill(note)

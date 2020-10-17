@@ -1,3 +1,4 @@
+import audio from "./audio-playback.js";
 import editor from "./editor.js";
 import grid from "./grid.js";
 import "./jquery-3.5.1.js";
@@ -80,28 +81,13 @@ grid.draw();
 keyboard.draw();
 playback.draw();
 
+
+let octaveTransposition = 60;
 // handle computer keyboard input
 // have to use keydown instead of keypress
 // to catch cmd+number before the browser default
 $(document).on("keydown", function(e) {
-    if (e.key == " ") {
-        e.preventDefault();
-        editor.togglePlayback()
-    } else if (+e.key && e.metaKey) {
-        /* check for digits */
-        e.preventDefault()
-        let n = +e.key;
-        if (n > 1) editor.applyToSelection(editor.equallyDivide, n)
-    } else if (e.key == 'Backspace') {
-        addMessage('Deleting selection')
-        editor.applyToSelection(editor.delete, e)
-    } else if (e.key == 'p') {
-        editor.applyToSelection(editor.play);
-    } else if (e.key == 'r') {
-        editor.applyToSelection(editor.resetBend);
-    } else if (e.key == 'Enter') {
-        editor.applyToSelection(editor.typeEdit)
-    } else if (e.metaKey) {
+    if (e.metaKey) {
         /* Cmd + ... shortcuts */
         if (e.key == 'a') {
             e.preventDefault();
@@ -112,7 +98,38 @@ $(document).on("keydown", function(e) {
         } else if (e.key == 'v') {
             e.preventDefault();
             editor.paste(e)
+        } else if (+e.key) {
+            /* check for digits */
+            e.preventDefault()
+            let n = +e.key;
+            if (n > 1) editor.applyToSelection(editor.equallyDivide, n)
         }
+    } else if (e.key == " ") {
+        e.preventDefault();
+        editor.togglePlayback()
+    } else if (e.key == 'Backspace') {
+        addMessage('Deleting selection')
+        editor.applyToSelection(editor.delete, e)
+/*     } else if (e.key == 'p') {
+        editor.applyToSelection(editor.play); */
+    } else if (e.key == 'r') {
+        editor.applyToSelection(editor.resetBend);
+    } else if (e.key == 'Enter') {
+        editor.applyToSelection(editor.typeEdit)
+    }
+}).on("keyup", e => {
+    if ("awsedftgyhujkolp;".includes(e.key)) {
+        let pitch = "awsedftgyhujkolp;".indexOf(e.key)
+        keyboard.noteOff(pitch + octaveTransposition)
+    }
+}).on("keypress", e => {
+    if ("awsedftgyhujkolp;".includes(e.key)) {
+        let pitch = "awsedftgyhujkolp;".indexOf(e.key)
+        keyboard.noteOn(pitch + octaveTransposition)
+    } else if (e.key == 'z') {
+        octaveTransposition = (octaveTransposition-12).clamp(0, 108);
+    } else if (e.key == 'x') {
+        octaveTransposition = (octaveTransposition+12).clamp(0, 108)
     }
 })
 

@@ -740,6 +740,7 @@ function createNoteInputBox(note) {
             note.updateGraphics()
         }).on('keypress', e => {
             if (isNaN(parseInt(e.key))) e.preventDefault()
+            e.stopPropagation()
         }).addClass("text-input")
     velocityInput.css({
         left: (note.xEnd + note.x)/2 - 15,

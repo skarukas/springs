@@ -66,21 +66,9 @@ class PianoKey {
             .mouseover(() => {
                 this.keyRect.fill(this.displayOptions.hoverColor);
             })
-            .mouseout(() => {
-                this.keyRect.fill(this.displayOptions.color);
-                grid.highlightPitch(this.pitch, false, this.displayOptions);
-                audio.noteOff(this.pitch)
-            })
-            .mousedown(() => {
-                this.keyRect.fill(this.displayOptions.clickColor);
-                grid.highlightPitch(this.pitch, true, this.displayOptions);
-                audio.noteOn(this.pitch)
-            })
-            .mouseup(() => {
-                this.keyRect.fill(this.displayOptions.color);
-                grid.highlightPitch(this.pitch, false, this.displayOptions);
-                audio.noteOff(this.pitch)
-            });
+            .mouseout(this.noteOff)
+            .mousedown(this.noteOn)
+            .mouseup(this.noteOff);
 
         if (!this.isNatural) this.keyRect.front();
         else this.keyRect.back();
@@ -95,6 +83,16 @@ class PianoKey {
                 
             disableMouseEvents(this.text)
         }
+    }
+    noteOn() {
+        this.keyRect.fill(this.displayOptions.clickColor);
+        grid.highlightPitch(this.pitch, true, this.displayOptions);
+        audio.noteOn(this.pitch)
+    }
+    noteOff() {
+        this.keyRect.fill(this.displayOptions.color);
+        grid.highlightPitch(this.pitch, false, this.displayOptions);
+        audio.noteOff(this.pitch)
     }
 }
 
@@ -112,6 +110,12 @@ const keyboard = {
     zoom(xZoom, yZoom) {
         this.canvas.size(style.keyDisplay.width, yZoom * editor.numKeys);
         for (let key of this.keys) key.updateGraphics(0);
+    },
+    noteOn(pitch) {
+        this.keys[pitch].noteOn()
+    },
+    noteOff(pitch) {
+        this.keys[pitch].noteOff()
     },
     keys: [],
 }
