@@ -254,11 +254,21 @@ editor.paste = function() {
 editor.togglePlayback = function() {
     if (playback.playing) {
         audio.pause();
-        //playback.pause();
-        playback.stop();
+        playback.pause();
+        //playback.stop();
     } else {
+        if (editor.selection.length) {
+            let minX = Infinity
+            for (let obj of editor.selection) {
+                if (obj instanceof SeqNote) {
+                    minX = Math.min(minX, obj.x)
+                }
+            }
+            playback.play(minX);
+        } else {
+            playback.play();
+        }
         audio.playNotes(editor.notes);
-        playback.play();
     }
 }
 

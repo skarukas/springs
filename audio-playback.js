@@ -5,6 +5,7 @@ import playback from "./playbackData.js";
 
 const audio = {
     notes: Array(128),
+    playingNotes: [],
     initAudio() {
         this.context = new (window.AudioContext || window.webkitAudioContext)();
         this.gainNode = this.context.createGain();
@@ -15,10 +16,17 @@ const audio = {
         return this.context.currentTime
     },
     pause() {
-        console.log("idk how to pause yet")
+        for (let note of this.playingNotes) note.stop()
+        this.playingNotes = []
     },
     /* Play a note `start` seconds in the future, ending `end` seconds into the future. */
     playNote(note, start=0, end=2.0) {
+        let time = playback.position / editor.zoomX
+        let offset = playback.MIDITimeToSeconds(time)
+        let relativeStart = Math.max(0, start - offset)
+        let relativeEnd = end - offset
+        if (relativeEnd < 0) return;
+
         if (!this.context) this.initAudio()
         
         let a = this.context.createOscillator()
@@ -26,10 +34,12 @@ const audio = {
         a.frequency.value = note.frequency
         a.type = 'sawtooth'
 
-        a.start(this.now + start)
-        a.stop(this.now + end)
+        a.start(this.now + relativeStart)
+        a.stop(this.now + relativeEnd)
         oscGain.gain.value = note.velocity / 128
         a.connect(oscGain).connect(this.gainNode)
+
+        this.playingNotes.push(a)
     },
     playNotes(notes) {
         for (let note of notes) {

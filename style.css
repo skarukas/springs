@@ -10,19 +10,19 @@ body {
 }
 
 .right-container {
-    height: 380px;
+    height: 580px;
     overflow: scroll;
 }
 
 .seq {
     border: 2px solid black;
-    height: 400px;
+    height: 600px;
     overflow: hidden;
     position: relative;
 }
 
 .piano-container {
-    height: 380px;
+    height: 580px;
 
    /*  overflow: visible;  */
 }

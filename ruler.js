@@ -16,6 +16,7 @@ const ruler = {
                 if (!playback.playing && e.buttons == 1) playback.position = e.offsetX;
             }).mousedown(e => {
                 if (!playback.playing) playback.position = e.offsetX;
+                editor.deselectAllObjects()
             });
 
         ruler.ticks = Array(editor.width).fill(0).map((_, i) => {

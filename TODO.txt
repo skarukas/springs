@@ -21,3 +21,5 @@
 - Add custom auto-connections
 - Some notes are not being deleted correctly (you can hear them in playback)
 - Fix intersection for non-rectangles (currently using SVG.checkIntersection which only checks bounding boxes)
+- Make it so the shadowpitch changes when changing bend/interval
+- Make playback about beats or secs rather than pixels
