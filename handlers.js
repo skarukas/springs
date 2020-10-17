@@ -1,7 +1,14 @@
 import editor from "./editor.js"
 import style from "./style.js"
 import grid from "./grid.js"
-import { mousePosn, simpleBezierPath, normAscendingInterval, guessJIInterval, parseIntervalText, addMessage } from "./util.js"
+import { 
+    mousePosn, 
+    simpleBezierPath, 
+    normAscendingInterval, 
+    guessJIInterval, 
+    parseIntervalText, 
+    addMessage 
+} from "./util.js"
 import SeqNote from "./seqNote.js";
 
 const handlers = {};
@@ -28,7 +35,8 @@ handlers["note_group"] = {
                 if (note.isConnectedTo(editor.seqConnector.source)) {
                     editor.setCursorStyle("not-allowed");
                 } else {
-                    intervalText = normAscendingInterval(guessJIInterval(editor.seqConnector.source.pitch, note.pitch)).toString();
+                    let defaultInterval = guessJIInterval(editor.seqConnector.source.pitch, note.pitch)
+                    intervalText = normAscendingInterval(defaultInterval).toString();
 
                     let {x, y} = mousePosn(e)
                     editor.seqText.text(intervalText)
@@ -104,31 +112,15 @@ handlers["note_attach"] = {
         if (!editor.seqConnector.visible()) editor.setCursorStyle("default"); // use editor.action
         else editor.setCursorStyle("crosshair");
     },
-/*     hovered(e, note) {
-        if (editor.seqConnector.source && note != editor.seqConnector.source) {
-            editor.seqConnector.destination = note;
-            if (editor.action == editor.connector) {
-                let intervalText;
-                if (note.isConnectedTo(editor.seqConnector.source)) {
-                    editor.setCursor("not-allowed");
-                } else {
-                    intervalText = normAscendingInterval(guessJIInterval(editor.seqConnector.source.pitch, note.pitch)).toString();
-                    //svgElement.style.cursor = "crosshair";
-                                    
-                    let {x, y} = mousePosn(e)
-                    editor.seqText.text(intervalText)
-                        .center(x, y - 15)
-                        .front()
-                        .show();
-                }
-            }
-        }
-    }, */
     clicked(e, note) {
         //let pt = canvas.point(e.x, e.y);
         let pt = mousePosn(e);
         //seqConnector.plot(pt.x, this.y + 0.5*this.height, pt.x, pt.y).show().front();
-        editor.seqConnector.plot(simpleBezierPath({x: pt.x, y: note.y + 0.5*note.height}, pt, 'vertical'))
+        let path = simpleBezierPath(
+            {x: pt.x, y: note.y + 0.5*note.height}, 
+            pt, 
+            'vertical')
+        editor.seqConnector.plot(path)
             .stroke(style.editorLine)
             .opacity(1)
             .show()
@@ -173,58 +165,6 @@ handlers["edge_line"] = {
     },
     doubleClick(e, edge) {
         editor.typeEdit(null, edge)
-        /* let foreign = editor.canvas.foreignObject(editor.canvas.width(),editor.canvas.height())
-            //.move(edge.midX, edge.midY)
-            .front()
-        let oldText = edge.text.text()
-        let interval;
-        let fadeDur = 200;
-        let background = $(document.createElement('div'))
-            .css({
-                width: "100%",
-                height: "100%",
-                padding: 0,
-                margin: 0,
-                backgroundColor: 'white',
-                opacity: 0.6
-            }).on('mousedown', ø => {
-                background.fadeOut(fadeDur,ø =>foreign.remove())
-                input.fadeOut(fadeDur)
-            }).hide().fadeIn(fadeDur)
-            .appendTo(foreign.node)
-        //$(foreign.node).css('background-color','red')
-
-
-        let input = $(document.createElement('input'))
-            .attr({
-                type: 'text',
-                size: 10,
-                placeholder: oldText
-            }).css({
-                position: 'absolute',
-                left: edge.midX,
-                top: edge.midY,
-                backgroundColor: 'rgba(255,255,255,0.6)',
-                color: 'black',
-                padding: 4,
-            }).on('input', e => {
-                input.attr('size', Math.min(input.val().length, 5))
-                interval = parseIntervalText(input.val())
-                if (interval) input.css('color', 'green')
-                else input.css('color', 'black')
-            }).on('keydown', e => {
-                if (e.key == 'Enter' && interval) {
-                    console.log('sub')
-                    edge.updateInterval(interval)
-                    foreign.remove()
-                } else if (e.key == 'Escape') {
-                    console.log('esc')
-                    foreign.remove()
-                }
-                e.stopPropagation()
-            }).appendTo(foreign.node)
-            .hide().fadeIn(fadeDur)
-            .trigger('focus') */
     }
 }
 

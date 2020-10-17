@@ -28,7 +28,9 @@ class PianoKey {
         return 8
     }
     get y() {
-        return (editor.numKeys - (PianoKey.keyYVals[this.pitchClass] * 12/7 + Math.floor(this.pitch/12) * 12)) * editor.zoomY;
+        let relativeY = PianoKey.keyYVals[this.pitchClass] * 12/7
+        let unscaledY = (relativeY + Math.floor(this.pitch/12) * 12)
+        return (editor.numKeys - unscaledY) * editor.zoomY;
     }
     get width() {
         return this.displayOptions.width;

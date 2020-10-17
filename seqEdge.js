@@ -1,4 +1,8 @@
-import { simpleBezierPath, normAscendingInterval, disableMouseEvents } from "./util.js"
+import { 
+    simpleBezierPath, 
+    normAscendingInterval, 
+    disableMouseEvents 
+} from "./util.js"
 import style from "./style.js"
 import editor from "./editor.js";
 import SeqNote from "./seqNote.js";
@@ -67,7 +71,8 @@ export default class SeqEdge {
         this.line.stroke({width})
         
         editor.assignMouseHandler(this, this.line, "edge_line")
-        this.text = canvas.text(normAscendingInterval(this.interval).toString())
+        let intervalLabel = normAscendingInterval(this.interval).toString()
+        this.text = canvas.text(intervalLabel)
             .font(style.editorText)
             .center(this.midX, this.midY)
             .opacity(0)
@@ -108,6 +113,7 @@ export default class SeqEdge {
     }
     // return the amount the top note will be bent
     getBend() {
-        return this.interval.subtract(tune.ETInterval(this.b.pitch - this.a.pitch)).cents() / 100;
+        let etDistance = tune.ETInterval(this.b.pitch - this.a.pitch)
+        return this.interval.subtract(etDistance).cents() / 100;
     }
 }

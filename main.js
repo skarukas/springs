@@ -21,10 +21,13 @@ $(document.createElement('div'))
 
 addButton("Say Peee Peeee")
     .on('click', ø => addMessage("PEE PEEEEE", 'blue'));
+
 addButton("Fit to Harmonic Series!")
     .on('click', ø => editor.applyToSelection(editor.tuneAsPartials));
+
 let $eqButton = addButton('Equally Divide')
     .on('click', ø => editor.applyToSelection(editor.equallyDivide, $divisions.val()));
+
 const $divisions = $(document.createElement('input'))
     .attr({
         type: 'number',
@@ -76,8 +79,6 @@ ruler.draw();
 grid.draw();
 keyboard.draw();
 playback.draw();
-
-console.log(playback.MIDITimeToSeconds(1))
 
 // handle computer keyboard input
 // have to use keydown instead of keypress

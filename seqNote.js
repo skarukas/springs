@@ -1,5 +1,8 @@
 import editor from "./editor.js";
-import { disableMouseEvents, guessJIInterval } from "./util.js"
+import { 
+    disableMouseEvents, 
+    guessJIInterval 
+} from "./util.js"
 import SeqEdge from "./seqEdge.js"
 import style from "./style.js"
 
@@ -252,8 +255,11 @@ export default class SeqNote {
             for (let [child, edge] of node.neighbors) {
                 if (!visited.has(child)) {
                     let newStore = options.combine(edge, child, ...storeVals);
-                    if (options.predicate(edge, child)) return options.successVal(edge, child, ...storeVals);
-                    else fringe.unshift([child, ...newStore]);
+                    if (options.predicate(edge, child)) {
+                        return options.successVal(edge, child, ...storeVals);
+                    } else {
+                        fringe.unshift([child, ...newStore]);
+                    }
                 }
             }
         }

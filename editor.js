@@ -5,7 +5,14 @@ import SeqGliss from "./seqGliss.js";
 import grid from "./grid.js"
 import ruler from "./ruler.js"
 import handlers from "./handlers.js"
-import { pitchName, addMessage, disableMouseEvents, mousePosn, simpleBezierPath, parseIntervalText } from "./util.js"
+import { 
+    pitchName, 
+    addMessage, 
+    disableMouseEvents, 
+    mousePosn, 
+    simpleBezierPath, 
+    parseIntervalText 
+} from "./util.js"
 import style from "./style.js";
 import playback from "./playbackData.js";
 import audio from "./audio-playback.js";
@@ -616,6 +623,19 @@ editor.typeEdit = function(_, ...objs) {
                 for (let note of noteBoxes) note.trigger('submit')
                 for (let edge of edgeBoxes) edge.trigger('submit')
                 background.trigger('mousedown')
+            } else if (e.key == 'Tab') {
+                for (let note of noteBoxes) {
+                    if (note.is(":hidden") || !edges.length) {
+                        note.show().trigger('focus')
+                    } else note.hide()
+                }
+                for (let edge of edgeBoxes) {
+                    if (edge.is(":hidden") || !notes.length) {
+                        edge.show().trigger('focus')
+                    } else edge.hide()
+                }
+
+                e.preventDefault()
             } else if (e.key == 'Escape') {
                 background.trigger('mousedown')
             }
@@ -640,35 +660,37 @@ editor.typeEdit = function(_, ...objs) {
     for (let edge of edges) {
         let box = createEdgeInputBox(edge)
         background.append(box)
-        box.trigger('focus')
-            .on('input', ø => {
-                box.attr('size', Math.max(box.val().length, 5))
+        box.on('input', ø => {
+                //box.attr('size', Math.max(box.val().length, 5))
                 let interval = parseIntervalText(box.val())
                 let color = interval? 'green' : 'red';
                 for (let ed of edgeBoxes) {
                     ed.css('border-color', color)
                     ed.val(box.val())
+                    ed.attr('size', Math.max(box.val().length, 5))
                 }
-            })
+            }).hide()
+        if (!notes.length) box.fadeIn(fadeDur).trigger('focus')
         edgeBoxes.push(box)
     }
 
     for (let note of notes) {
         let box = createNoteInputBox(note)
         background.append(box)
-        box.trigger('focus')
-            .on('input', ø => {
+        box.on('input', ø => {
                 let v = parseInt(box.val())
                 let color = (v < 128) ? 'green' : 'red';
                 for (let n of noteBoxes) {
                     n.css('border-color', color)
                     n.val(box.val())
                 }
-            })
+            }).hide()
+            .fadeIn(fadeDur)
+            .trigger('focus')
         noteBoxes.push(box)
     }
 
-    $('input[type=range]').fadeOut(500)
+    $('input[type=range]').fadeOut(fadeDur)
 }
 
 function createEdgeInputBox(edge) {
@@ -687,8 +709,7 @@ function createEdgeInputBox(edge) {
         }).on('submit', ø => {
             let interval = parseIntervalText(input.val())
             interval && edge.updateInterval(interval)
-        }).hide().fadeIn(200)
-        .addClass("text-input")
+        }).addClass("text-input")
     return input;
 }
 
@@ -709,8 +730,7 @@ function createNoteInputBox(note) {
             note.updateGraphics()
         }).on('keypress', e => {
             if (isNaN(parseInt(e.key))) e.preventDefault()
-        }).hide().fadeIn(200)
-        .addClass("text-input")
+        }).addClass("text-input")
     velocityInput.css({
         left: (note.xEnd + note.x)/2 - 15,
         top: note.y-5,
