@@ -196,7 +196,7 @@ $(ø => {
         console.log("loaded demo data:",data)
         editor.addCompressedData(data)
         editor.deselectAllObjects()
-    }
+    } 
 
     $yRange.on('input', ø => editor.zoom(editor.zoomX, +$yRange.val()));
     $xRange.on('input', ø => editor.zoom(+$xRange.val(), editor.zoomY));
