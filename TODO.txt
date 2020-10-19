@@ -13,6 +13,8 @@
     /- create function for translating mouseposn into pitch/time
     /- need to be able to copy structures too...
 /- Add editable edge intervals
+/- problem with octave transposition screwing up intervals/edges
+/- make grid non-svg (canvas/image?)
 
 
 - Make color more visible
@@ -23,3 +25,22 @@
 - Fix intersection for non-rectangles (currently using SVG.checkIntersection which only checks bounding boxes)
 - Make it so the shadowpitch changes when changing bend/interval
 - Make playback about beats or secs rather than pixels
+- Make glisses selectable/deletable
+- Make glisses copyable/savable!!! (Compressable)
+- Fix zoom : (((
+    /- viewbox is the way to go but mouseposns are currently screwed up
+    /- box select now screwed up
+    /- need keyboard and ruler to scale with the zoom amount
+    - fix aspect ratio of editor? make it slightly editable?
+    - edit menu zoom messed up
+    - Fix zoom range options
+    - check all references to grid draw
+- enable redrawing of canvas
+- zoom still big problem :-(
+- create scrollbars?
+- make audioparam smoother
+- saved glisses are corrupt
+- make it work on safari
+- sometimes notes get moved over before measure 1 ??
+- makes glisses deletable when deleting notes
+- add comments in editor

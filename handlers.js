@@ -1,6 +1,5 @@
 import editor from "./editor.js"
 import style from "./style.js"
-import grid from "./grid.js"
 import { 
     mousePosn, 
     simpleBezierPath, 
@@ -38,7 +37,7 @@ handlers["note_group"] = {
                     let defaultInterval = guessJIInterval(editor.seqConnector.source.pitch, note.pitch)
                     intervalText = normAscendingInterval(defaultInterval).toString();
 
-                    let {x, y} = mousePosn(e)
+                    let {x, y} = editor.canvas.point(e.x, e.y)
                     editor.seqText.text(intervalText)
                         .center(x, y - 15)
                         .front()
@@ -94,7 +93,6 @@ handlers["note_right_handle"] = {
             let width = editor.zoomY
             editor.seqConnector.stroke({color, width})
                 .opacity(0.6)
-                .insertAfter(grid.canvas) // failed attempt at getting it in the right layer :(
                 .show();
             editor.glisser(editor.seqConnector, e)
         } else {
@@ -113,8 +111,8 @@ handlers["note_attach"] = {
         else editor.setCursorStyle("crosshair");
     },
     clicked(e, note) {
-        //let pt = canvas.point(e.x, e.y);
-        let pt = mousePosn(e);
+        let pt = editor.canvas.point(e.x, e.y);
+        //let pt = mousePosn(e);
         //seqConnector.plot(pt.x, this.y + 0.5*this.height, pt.x, pt.y).show().front();
         let path = simpleBezierPath(
             {x: pt.x, y: note.y + 0.5*note.height}, 

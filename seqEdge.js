@@ -16,7 +16,6 @@ export default class SeqEdge {
     updateGraphics(animateDuration=300) {
         if (this.line) {
             this.text.text(normAscendingInterval(this.interval).toString())
-
             let line = animateDuration? this.line.animate(animateDuration) : this.line;
             let text = animateDuration? this.text.animate(animateDuration) : this.text;
             
@@ -38,16 +37,16 @@ export default class SeqEdge {
         return (this.y1 + this.y2) / 2;
     }
     get x1() {
-        return this.a.handleX
+        return this.minNote.handleX
     }
     get x2() {
-        return this.b.handleX
+        return this.maxNote.handleX
     }
     get y1() {
-        return this.a.handleY
+        return this.minNote.handleY
     }
     get y2() {
-        return this.b.handleY
+        return this.maxNote.handleY
     }
     set selected(val) {
         this._selected = val;
@@ -95,8 +94,8 @@ export default class SeqEdge {
     remove() {
         this.line.remove();
         this.text.remove();
-        SeqNote.graph.get(this.a).delete(this.b)
-        SeqNote.graph.get(this.b).delete(this.a)
+        SeqNote.graph.get(this.a)?.delete(this.b)
+        SeqNote.graph.get(this.b)?.delete(this.a)
         
         /* Retune the higher note */
         this.maxNote.propagateBend(0, 300, [this.minNote]);
@@ -113,7 +112,7 @@ export default class SeqEdge {
     }
     // return the amount the top note will be bent
     getBend() {
-        let etDistance = tune.ETInterval(this.b.pitch - this.a.pitch)
+        let etDistance = tune.ETInterval(this.maxNote.pitch - this.minNote.pitch)
         return this.interval.subtract(etDistance).cents() / 100;
     }
 }

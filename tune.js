@@ -573,7 +573,7 @@
         }
         /** The size in steps (interval class) and base, e.g. "4 [12ET]", */
         get name() {
-            return this.__name__ || `${this.n.toFixed(2)} [${this.d}ET]`;
+            return this.__name__ || `${this.n.toFixed(2)}#${this.d}`;
         }
         /** or a custom name. */
         set name(val) { this.__name__ = val; }

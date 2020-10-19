@@ -17,7 +17,14 @@ import style from "./style.js";
 import playback from "./playbackData.js";
 import audio from "./audio-playback.js";
 
-const editor = {};
+const editor = {
+    get width() {
+        return editor.widthInTime * editor.zoomX;
+    },
+    get height() {
+        return editor.numKeys * editor.zoomY;
+    }
+};
 export default editor;
 
 let pianoRollElement = document.getElementById('piano-roll');
@@ -28,21 +35,80 @@ editor.glisses = [];
 editor.selection = [];
 editor.selectionForest = [];
 editor.action = null;
-editor.timeGridSize = 0.5;
+editor.timeGridSize = 1;
 editor.zoomX = 8;
 editor.zoomY = 16;
-editor.width = 1024;
+editor.widthInTime = 1024;
 editor.numKeys = 128;
 editor.selectedObject = null;
 editor.mousePosn = undefined;
 
-const svg = SVG()
+editor.canvas = SVG()
     .addTo('#piano-roll')
-    .size(editor.zoomX * editor.width, editor.zoomY * editor.numKeys);
+    .size(editor.zoomX * editor.widthInTime, editor.zoomY * editor.numKeys)
+    .viewbox(0, 0, editor.width, editor.height)
+
+editor.zoomXY = 1;
+editor.scale = function(val) {
+    if (val < 0.28) return
+    let width = editor.zoomX * editor.widthInTime / val
+    let height = editor.zoomY * editor.numKeys / val
+    editor.canvas.viewbox(editor.scrollX, editor.scrollY, width, height)
+    editor.zoomXY = val
+    grid.scale(val)
+    ruler.scale(val)
+    ruler.scroll(editor.scrollX * val, editor.scrollY * val)
+    keyboard.scale(val)
+    keyboard.scroll(editor.scrollX * val, editor.scrollY * val)
+    playback.scale(val)
+    editor.scroll(1, 1)
+    //keyboard.svg.viewbox(0, 0, keyboard.width, height) // temp
+/*     editor.zoomX *= val;
+    editor.zoomY *= val;
+    ruler.zoom(editor.zoomX, editor.zoomY)
+    keyboard.zoom(editor.zoomX, editor.zoomY) */
+}
+
+editor.scrollX = 0;
+editor.scrollY = 0;
+
+editor.scroll = function(dx, dy) {
+
+    let h = $('.right-container').height();
+    let w = $('.right-container').width();
+
+    let viewHeight = (editor.height - editor.scrollY + dy) * editor.zoomXY;
+    let viewWidth = (editor.width - editor.scrollX + dx) * editor.zoomXY;
+    
+    if (viewHeight < h && dy > 0) {
+        editor.scrollY = editor.height - h/editor.zoomXY;
+    } else if (viewWidth < w && dx > 0) {
+        editor.scrollX = editor.width - w/editor.zoomXY;
+    } else {
+        editor.scrollX = Math.max(0, editor.scrollX + dx);
+        editor.scrollY = Math.max(0, editor.scrollY + dy);
+    }
+    let width = editor.zoomX * editor.widthInTime / editor.zoomXY
+    let height = editor.zoomY * editor.numKeys / editor.zoomXY
+    editor.canvas.viewbox(editor.scrollX, editor.scrollY, width, height)
+
+    let scrollX = editor.scrollX * editor.zoomXY;
+    let scrollY = editor.scrollY * editor.zoomXY;
+    keyboard.scroll(scrollX, scrollY);
+    ruler.scroll(scrollX, scrollY);
+    grid.scroll(scrollX, scrollY);
+}
+
+editor.drag = function(e) {
+    let pt = editor.canvas.point(e.x, e.y)
+    editor.scroll(
+        editor.clickStart.x - pt.x,
+        editor.clickStart.y - pt.y);
+} 
 
 editor.draw = function() {
 
-    editor.canvas = svg.group()
+    editor.canvas
     .mousemove(e => {
         switch (editor.action) {
             case editor.move:
@@ -60,11 +126,15 @@ editor.draw = function() {
             case editor.glisser:
                 editor.action(editor.seqConnector, e);
                 break;
+            case editor.drag:
+                editor.drag(e)
+                break;
         }
         editor.mousePosn = {x: e.x, y:e.y}
         //if (!playback.playing && e.buttons == 1) playback.position = e.offsetX;
     }).mousedown(e => {
-        editor.clickStart = mousePosn(e);
+        //editor.clickStart = mousePosn(e);
+        editor.clickStart = editor.canvas.point(e.x, e.y)
         if (!editor.action) {
             if (e.metaKey) {
                 /* Create note */
@@ -75,6 +145,9 @@ editor.draw = function() {
                     editor.timeGridSize);
                 editor.action = editor.resizeRight
                 editor.selectObject(n)
+            } else if (e.shiftKey) {
+                editor.setCursorStyle("grabbing")
+                editor.action = editor.drag;
             } else {
                 let poly = [[editor.clickStart.x, editor.clickStart.y],
                 [editor.clickStart.x, editor.clickStart.y],
@@ -127,6 +200,9 @@ editor.draw = function() {
         let y = editor.canvas.point(0, e.y).y;
         return Math.floor(editor.numKeys - y/editor.zoomY);
     }
+    editor.quantizeTime = function(time) {
+        return Math.round(time / editor.timeGridSize) * editor.timeGridSize;
+    }
 
     editor.selectBox = 
         editor.canvas.polygon()
@@ -150,9 +226,21 @@ editor.draw = function() {
 }
 
 editor.copySelection = function() {
-    let clipboard = []
     let notes = editor.selection.filter(e => e instanceof SeqNote)
-    let edges = []
+    editor.clipboard = editor.compressData(notes)
+}
+
+/* Automatically stores edges between notes as well */
+editor.compressData = function(objs) {
+    let compressed = {
+        notes: [],
+        edges: [],
+        glisses: []
+    }
+    let notes = objs.filter(e => e instanceof SeqNote)
+    //let edges = objs.filter(e => e instanceof SeqEdge)
+    //let glisses = objs.filter(e => e instanceof SeqGliss) // not selectable yet
+    let edges = [];
     let seen = new Set();
 
     /* Add necessary edges (edges between selected notes) */
@@ -168,87 +256,147 @@ editor.copySelection = function() {
         }
     }
 
+    // Add necessary glisses (glisses between selected notes)
+    for (let i = 0; i < notes.length; i++) {
+        for (let gliss of notes[i].glissOutputs) {
+            let idx = notes.indexOf(gliss.endNote)
+            if (idx != -1) {
+                compressed.glisses.push({
+                    start: i,
+                    end: idx
+                })
+            }
+        }
+    }
 
     // returns the index of the inserted note
     // and whether or not the note was a new addition
-    function addNoteToClipboard(note) {
+    function addCompressedNote(note) {
         let copy = {
             pitch: note.pitch,
             velocity: note.velocity,
             start: note.start,
-            duration: note.duration
+            duration: note.duration,
+            bend: note.bend
         }
         let idx = -1;
-        for (let i = 0; i < clipboard.length; i++) {
-            if (JSON.stringify(clipboard[i]) == JSON.stringify(copy)) {
+        for (let i = 0; i < compressed.notes.length; i++) {
+            if (JSON.stringify(compressed.notes[i]) == JSON.stringify(copy)) {
                 idx = i;
                 break;
             }
         }
-        if (idx == -1) return [true, clipboard.push(copy) - 1]
+        if (idx == -1) return [true, compressed.notes.push(copy) - 1]
         else return [false, idx]
     }
 
-    let edgesToAdd = []
     /* Add the ones that are connected */
     for (let edge of edges) {
-        let [isAdded1, id1] = addNoteToClipboard(edge.a)
-        let [isAdded2, id2] = addNoteToClipboard(edge.b)
-        /*  :(   */
+        let [isAdded1, id1] = addCompressedNote(edge.a)
+        let [isAdded2, id2] = addCompressedNote(edge.b)
         if (isAdded1 || isAdded2) {
-            edgesToAdd.push({
+            compressed.edges.push({
                 id1,
                 id2,
-                interval: edge.interval
+                interval: edge.interval.toString()
             })
         }
     }
 
     /* Add the ones that are not connected */
-    notes.map(addNoteToClipboard)
-    clipboard.push(...edgesToAdd)
-    editor.clipboard = clipboard;
+    notes.map(addCompressedNote)
+    return compressed
 }
 
+editor.updateLocalStorage = function() {
+    let compressed = editor.compressData(editor.notes)
+    localStorage.setItem("cachedEditor", JSON.stringify(compressed))
+}
 
-editor.paste = function() {
+editor.loadEditorFromLocalStorage = function() {
+    let stringified = localStorage.getItem("cachedEditor")
+    if (stringified) {
+        let compressed = JSON.parse(stringified)
+        editor.addCompressedData(compressed)
+        editor.deselectAllObjects()
+    }
+}
+
+editor.clearAllData = function() {
+    editor.delete(null, ...editor.notes)
+}
+
+editor.addCompressedData = function(compressed, offsetTime=0, offsetPitch=0) {
     editor.deselectAllObjects()
 
-    let p = editor.mousePosn;
-    let pitch = editor.mousePosnToPitch(p)
-    let time = editor.mousePosnToTime(p)
-    let notes = editor.clipboard.filter(e => e.pitch != undefined)
-    let edges = editor.clipboard.filter(e => e.interval != undefined)
+    let notes = [];
+    let edges = [];
+    let glisses = [];
 
-    /* Paste by setting position of the leftmost element to mouse posn */
+    /* Add notes from compressed version */
+    for (let noteObj of compressed.notes) {
+        let note = editor.addNote(
+            noteObj.pitch + offsetPitch, 
+            noteObj.velocity,
+            noteObj.start + offsetTime,
+            noteObj.duration)
+        note.bend = noteObj.bend;
+        notes.push(note)
+    }
+
+    /* 
+        Create edges, accessing the indices of the
+        note array.
+    */
+    for (let edgeObj of compressed.edges) {
+        let interval = parseIntervalText(edgeObj.interval)
+        let edge = editor.connect(
+            notes[edgeObj.id1], 
+            notes[edgeObj.id2], 
+            interval)
+        edges.push(edge)
+    }
+
+    /* 
+        Create glisses, accessing the indices of the
+        note array.
+    */
+    for (let glissObj of compressed.glisses) {
+        let gliss = editor.gliss(
+            notes[glissObj.start], 
+            notes[glissObj.end])
+        glisses.push(gliss)
+    }
+
+    return { notes, edges, glisses }
+}
+
+editor.transposeByOctaves = function(n, ...objs) {
+    let notes = objs.filter(e => e instanceof SeqNote)
+    for (let note of notes) note.transposeByOctaves(n)
+}
+
+editor.paste = function() {
+
+    let p = editor.mousePosn;
+    let time = editor.mousePosnToTime(p)
+    let pitch = editor.mousePosnToPitch(p)
+
+    // Mouseposn => start of leftmost note, pitch of heighest note
     let minStart = Infinity;
     let maxPitch = 0;
-    for (let note of notes) {
+    for (let note of editor.clipboard.notes) {
         minStart = Math.min(minStart, note.start)
         maxPitch = Math.max(maxPitch, note.pitch)
     }
 
-    /* Replace skeleton notes with real notes */
-    for (let i = 0; i < notes.length; i++) {
-        notes[i] = editor.addNote(
-            (notes[i].pitch - maxPitch) + pitch, 
-            notes[i].velocity,
-            (notes[i].start - minStart) + time,
-            notes[i].duration)
-        editor.toggleObjectInSelection(notes[i])
-    }
+    let { notes, edges } = editor.addCompressedData(
+        editor.clipboard, 
+        time - minStart, 
+        pitch - maxPitch)
 
-    /* 
-        Create edges, accessing the indices of the changed 
-        note array.
-    */
-    for (let ed of edges) {
-        let edge = editor.connect(
-            notes[ed.id1], 
-            notes[ed.id2], 
-            ed.interval)
-        editor.toggleObjectInSelection(edge)
-    }
+    for (let note of notes) editor.toggleObjectInSelection(note)
+    for (let edge of edges) editor.toggleObjectInSelection(edge)
 }
 
 editor.togglePlayback = function() {
@@ -274,20 +422,14 @@ editor.togglePlayback = function() {
 
 editor.glisser = function(seqConnector, e) {
     let start = {x: seqConnector.source.xEnd, y: seqConnector.source.y + editor.zoomY / 2};
-    let time = editor.mousePosnToTime(e)
-    let pitch = editor.mousePosnToPitch(e)
-
-    /* Stop from extending to a note before the start point */    
-    let x = Math.max(time * editor.zoomX, start.x);
-    let y = (editor.numKeys - pitch) * editor.zoomY
-    //seqConnector.plot(start.x, start.y, x, y).show();
-    let path = simpleBezierPath(start, {x, y}, 'horizontal');
-    seqConnector.plot(path)
-        .show();
+    let end = editor.canvas.point(e.x, e.y)
+    let path = simpleBezierPath(start, end, 'horizontal');
+    seqConnector.plot(path).show();
 }
 
 editor.boxSelect = function(box, e) {
-    let end = mousePosn(e);
+    //let end = mousePosn(e);
+    let end = editor.canvas.point(e.x, e.y)
     let start = editor.clickStart;
     let poly = [
         [start.x, end.y],
@@ -317,10 +459,14 @@ editor.toggleObjectInSelection = function(obj) {
 }
 
 editor.selectObjectsInBox = function(selectBox) {
-    let svgElem = $('svg').get()[0]
-    let rect = selectBox.node.getBBox()
     editor.deselectAllObjects();
 
+    let svgElem = $('svg').get()[0]
+    let rect = selectBox.node.getBBox()
+    // change to non-transformed viewbox temporarily
+    // a little hacky, but it works
+    let vb = editor.canvas.viewbox()
+    editor.canvas.viewbox(0, 0, editor.width, editor.height)
     let selectedNotes = editor.notes.filter(note => {
         return svgElem.checkIntersection(note.rect.node, rect)
     });
@@ -328,6 +474,7 @@ editor.selectObjectsInBox = function(selectBox) {
     let selectedEdges = editor.edges.filter(edge => {
         return svgElem.checkIntersection(edge.line.node, rect)
     })
+    editor.canvas.viewbox(vb)
 
     editor.selection = selectedNotes.concat(selectedEdges)
     for (let obj of editor.selection) obj.selected = true;
@@ -408,14 +555,16 @@ editor.connect = function(note1, note2, by) {
 }
 
 editor.gliss = function(start, end) {
+    let gliss;
     /* Stop from extending to a note before the start point */ 
     if (start.xEnd < end.x) {
-        let gliss = new SeqGliss(start, end);
+        gliss = new SeqGliss(start, end);
         start.glissOutputs.push(gliss);
         end.glissInputs.push(gliss);
         gliss.draw(editor.canvas);
         editor.glisses.push(gliss)
     }
+    return gliss;
 }
 
 
@@ -442,21 +591,24 @@ editor.move = function(e, objs, forest) {
     if (!forest.length) forest = objs;
 
     let notes = objs.filter(e => e instanceof SeqNote)
-    e = mousePosn(e)
+    forest = forest.filter(e => e instanceof SeqNote)
+
+    let posn = editor.canvas.point(e.x, e.y)
     if (!startPosns) {
         startPosns = new Map();
         lastDeltas = {x:0, y:0};
         for (let note of forest) startPosns.set(note, {start: note.start, pitch: note.pitch});
     }
 
-    let deltaX = editor.mousePosnToTime(e) - editor.mousePosnToTime(editor.clickStart);
-    let deltaY = Math.round(editor.mousePosnToPitch(e) - editor.mousePosnToPitch(editor.clickStart));
+    let deltaX = (posn.x - editor.clickStart.x) / editor.zoomX
+    let deltaY = (posn.y - editor.clickStart.y) / editor.zoomY
     if (lastDeltas.x != deltaX) {
         for (let note of notes) {
             let n = startPosns.get(note);
-            let d = note.duration;
-            note.start = Math.max(n.start + deltaX, 0);
-            note.end = note.start + d
+            let duration = note.duration;
+            let anustart = Math.max(n.start + deltaX, 0);
+            note.start = editor.quantizeTime(anustart)
+            note.end = note.start + duration
             note.redrawPosition(0);
             note.redrawInputs(0);
             note.redrawOutputs();
@@ -465,7 +617,8 @@ editor.move = function(e, objs, forest) {
     if (lastDeltas.y != deltaY) {
         for (let note of forest) {
             let n = startPosns.get(note);
-            note.pitch = (n.pitch + deltaY).clamp(0, editor.numKeys);
+            let pitch = (n.pitch - deltaY).clamp(0, editor.numKeys);
+            note.pitch = Math.round(pitch)
             note.redrawPosition(0);
             note.redrawInputs(0);
             note.redrawOutputs();
@@ -540,16 +693,18 @@ editor.tuneAsPartials = function(_, ...objs) {
 let startStarts;
 editor.resizeLeft = function(e, ...objs) {
     let notes = objs.filter(e => e instanceof SeqNote)
-    e = mousePosn(e)
+    //e = mousePosn(e)
+    e = editor.canvas.point(e.x, e.y)
 
     if (!startStarts) {
         startStarts = new Map();
         for (let note of notes) startStarts.set(note, note.start);
     }
 
-    let deltaX = editor.mousePosnToTime(e) - editor.mousePosnToTime(editor.clickStart);
+    let deltaX = (e.x - editor.clickStart.x) / editor.zoomX;
     for (let note of notes) {
-        note.start = (startStarts.get(note) + deltaX).clamp(0, note.end-editor.timeGridSize)
+        let anustart = (startStarts.get(note) + deltaX).clamp(0, note.end-editor.timeGridSize)
+        note.start = editor.quantizeTime(anustart)
         note.updateGraphics(0);
         note.redrawInputs(0);
     }
@@ -558,16 +713,17 @@ editor.resizeLeft = function(e, ...objs) {
 let startEnds;
 editor.resizeRight = function(e, ...objs) {
     let notes = objs.filter(e => e instanceof SeqNote)
-    e = mousePosn(e)
+    e = editor.canvas.point(e.x, e.y)
 
     if (!startEnds) {
         startEnds = new Map();
         for (let note of notes) startEnds.set(note, note.end);
     }
 
-    let deltaX = editor.mousePosnToTime(e) - editor.mousePosnToTime(editor.clickStart);
+    let deltaX = (e.x - editor.clickStart.x) / editor.zoomX;
     for (let note of notes) {
-        note.end = (startEnds.get(note) + deltaX).clamp(note.start+editor.timeGridSize, editor.width)
+        let anuend = (startEnds.get(note) + deltaX).clamp(note.start+editor.timeGridSize, editor.widthInTime)
+        note.end = editor.quantizeTime(anuend)
         note.updateGraphics(0);
         note.redrawOutputs();
     }
@@ -603,7 +759,8 @@ editor.typeEdit = function(_, ...objs) {
     let edges = objs.filter(e => e instanceof SeqEdge)
     let notes = objs.filter(e=> e instanceof SeqNote)
      /* Create an input box for the new interval */
-     let foreign = editor.canvas.foreignObject(editor.canvas.width(), editor.canvas.height())
+    let foreign = editor.canvas.foreignObject(editor.width, editor.height)
+        .css('overflow', 'visible')
         .front()
     let fadeDur = 500;
     let noteBoxes = [];
@@ -626,7 +783,6 @@ editor.typeEdit = function(_, ...objs) {
             for (let note of noteBoxes) note.fadeOut(fadeDur)
             for (let edge of edgeBoxes) edge.fadeOut(fadeDur)
             instructions.fadeOut(fadeDur)
-            //$('input').attr('disabled', false)
             $('input').fadeIn(500)
         }).on('keydown', e => {
             if (e.key == 'Enter') {
@@ -658,14 +814,15 @@ editor.typeEdit = function(_, ...objs) {
         .css({
             position: 'absolute',
             textAlign: 'center',
-            width: "100%",
+            width: "80%",
             top: 20,
             fontFamily: 'Arial',
             fontSize: 12,
             letterSpacing: 1,
-            color: "green"
+            color: "green",
+            left: "10%"
         }).hide().fadeIn(fadeDur)
-        .appendTo($('.right-container'))
+        .appendTo($('.seq'))
 
     for (let edge of edges) {
         let box = createEdgeInputBox(edge)
@@ -697,6 +854,8 @@ editor.typeEdit = function(_, ...objs) {
             }).hide()
             .fadeIn(fadeDur)
             .trigger('focus')
+
+        box.show()
         noteBoxes.push(box)
     }
 
@@ -729,7 +888,7 @@ function createNoteInputBox(note) {
             type: 'text',
             size: 3,
             maxlength: 3,
-            placeholder: note.pitch
+            placeholder: note.velocity
         })/* .on('input', ø => {
             if (velocityInput.val()) velocityInput.css('border-color', 'green')
             else velocityInput.css('border-color', 'red')
@@ -751,8 +910,8 @@ function createNoteInputBox(note) {
 
 editor.connector = function(seqConnector, e) {
     let oldPt = editor.clickStart;
-    //let newPt = editor.draw.point(e.x, e.y);
-    let newPt = mousePosn(e);
+    let newPt = editor.canvas.point(e.x, e.y);
+    //let newPt = mousePosn(e);
     seqConnector.plot(simpleBezierPath(oldPt, newPt, 'vertical')).front().show();
     
     if (!seqConnector.destination) {
@@ -761,20 +920,21 @@ editor.connector = function(seqConnector, e) {
     }
 }
 
-
 editor.zoom = function(xZoom, yZoom) {
+    //throw "Zoom problems!!! :(";
     editor.zoomX = xZoom;
     editor.zoomY = yZoom;
     //seqBackground.size(editor.width * editor.zoomX, numKeys * editor.zoomY);
     for (let note of editor.notes) note.updateGraphics(0);
     for (let edge of editor.edges) edge.updateGraphics(0);
     for (let gliss of editor.glisses) gliss.updateGraphics(0);
-    svg.size(editor.zoomX * editor.width, editor.zoomY * editor.numKeys);
-
+    editor.canvas.size(editor.zoomX * editor.widthInTime, editor.zoomY * editor.numKeys);
+    //return
     /* right now these rely on editor.zoomX/Y which is problematic--they have to go here */
     grid.zoom(xZoom, yZoom)
     ruler.zoom(xZoom, yZoom)
     keyboard.zoom(xZoom, yZoom)
+    editor.scale(editor.zoomXY)
 }
 
 

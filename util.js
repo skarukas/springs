@@ -31,7 +31,7 @@ export function simpleBezierPath(start, end, orientation) {
 }
 
 export function normAscendingInterval(interval) {
-    if (interval.cents() < 0) interval = interval.inverse();
+    /* if (interval.cents() < 0) interval = interval.inverse(); */
     return interval.normalized();
 }
 
@@ -51,11 +51,14 @@ const fiveLimitScale = [
     tune.FreqRatio(15, 8)
 ];
 
-export function guessJIInterval(x, y) {
-    let idx = (((y - x) % 12) + 12) % 12;
-    let octaves = Math.floor((y - x) / 12);
+export function guessJIInterval(lo, hi) {
+    if (lo > hi) [hi, lo] = [lo, hi]
+        
+    let idx = (((hi - lo) % 12) + 12) % 12;
+    let octaves = Math.floor((hi - lo) / 12);
     let ji = fiveLimitScale[idx];
     let interval = ji
+
     return interval.add(tune.ETInterval.octave.multiply(octaves));
 }
 

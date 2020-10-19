@@ -30,13 +30,13 @@ class PianoKey {
     get y() {
         let relativeY = PianoKey.keyYVals[this.pitchClass] * 12/7
         let unscaledY = (relativeY + Math.floor(this.pitch/12) * 12)
-        return (editor.numKeys - unscaledY) * editor.zoomY;
+        return (editor.numKeys - unscaledY) * editor.zoomY * keyboard.scaleVal;
     }
     get width() {
         return this.displayOptions.width;
     }
     get whiteKeyHeight() {
-        return (12/7) * editor.zoomY;
+        return (12/7) * editor.zoomY * keyboard.scaleVal;
     }
     get height() {
         return this.isNatural? this.whiteKeyHeight : this.whiteKeyHeight * 0.6;
@@ -66,9 +66,9 @@ class PianoKey {
             .mouseover(() => {
                 this.keyRect.fill(this.displayOptions.hoverColor);
             })
-            .mouseout(this.noteOff)
-            .mousedown(this.noteOn)
-            .mouseup(this.noteOff);
+            .mouseout(ø => this.noteOff())
+            .mousedown(ø => this.noteOn())
+            .mouseup(ø => this.noteOff());
 
         if (!this.isNatural) this.keyRect.front();
         else this.keyRect.back();
@@ -101,6 +101,7 @@ const keyboard = {
         this.canvas = SVG()
             .addTo('#roll-keyboard')
             .size(style.keyDisplay.width, editor.zoomY * editor.numKeys);
+        this.svg = this.canvas
         for (let i = 0; i < editor.numKeys; i++) {
             let key = new PianoKey(i);
             key.draw(this.canvas);
@@ -111,6 +112,12 @@ const keyboard = {
         this.canvas.size(style.keyDisplay.width, yZoom * editor.numKeys);
         for (let key of this.keys) key.updateGraphics(0);
     },
+    scale(val) {
+        this.scaleVal = val;
+        this.canvas.size(style.keyDisplay.width, val * editor.height);
+        for (let key of this.keys) key.updateGraphics(0);
+    },
+    scaleVal: 1,
     noteOn(pitch) {
         this.keys[pitch].noteOn()
     },
@@ -118,6 +125,15 @@ const keyboard = {
         this.keys[pitch].noteOff()
     },
     keys: [],
+    get width() {
+        return style.keyDisplay.width;
+    },
+    scroll(x, y) {
+        let $keyboard = $('.piano-container');
+        $keyboard.css('overflow', 'scroll');
+        $keyboard.scrollTop(y);
+        $keyboard.css('overflow', 'hidden')
+    }
 }
 
 export default keyboard

@@ -15,10 +15,14 @@ const playback = {
     bpm: 120,
     ticksPerBeat: 4,    // 16th division
     beatsPerMeasure: 4, // in 4/4
+    scaleVal: 1,
+    scale(val) {
+        this.scaleVal = val
+    },
     set position(val) {
         playback._position = val;
         playback.line.plot(val, 0, val, editor.numKeys * editor.zoomY).show();
-        playback.carrot.cx(val).show()
+        playback.carrot.cx(val * this.scaleVal).show()
     },
     get position() {
         return playback._position;
@@ -41,12 +45,12 @@ const playback = {
             let deltaMs = now - start;
             let measureCount = deltaMs / measureLengthMs;
             let posn = startPosition + measureWidth * measureCount;
-            let screenPosn = Math.max(posn - 100, 0);
-            $scroller.get()[0].scroll(screenPosn, $scroller.scrollTop());
-            $ruler.get()[0].scroll(screenPosn, $ruler.scrollTop());
+            let screenPosn = Math.max(posn - 100, 0) * this.scaleVal;
+            //$scroller.get()[0].scroll(screenPosn, $scroller.scrollTop());
+            //$ruler.get()[0].scroll(screenPosn, $ruler.scrollTop());
 
             playback.position = posn;
-            if (posn >= editor.width * editor.zoomX) playback.stop();
+            if (posn >= editor.width) playback.stop();
         }, 1000 / fps);
     },
     pause() {

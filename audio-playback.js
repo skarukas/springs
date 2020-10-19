@@ -21,7 +21,6 @@ const audio = {
     },
     /* Play a note `start` seconds in the future, ending `end` seconds into the future. */
     playNote(note, start=0, end=2.0) {
-        console.log("playing note from",start, "to",end)
         let time = playback.position / editor.zoomX
         let offset = playback.MIDITimeToSeconds(time)
         let relativeStart = Math.max(0, start - offset)

@@ -1,6 +1,7 @@
 body {
     padding: 0px;
     margin: 0px;
+    font-family: Menlo;
 }
 
 .left-container {
@@ -12,6 +13,7 @@ body {
 .right-container {
     height: 580px;
     overflow: scroll;
+    position: relative;
 }
 
 .seq {
@@ -92,4 +94,27 @@ body {
     border-radius: 6px;
     padding: 4px;
     border: 2px solid black;
+}
+
+#controls {
+    display: none;
+    font-family: Menlo;
+    font-size: 1.7vh;
+    position: fixed;
+    padding: 5%;
+    z-index: 1;
+}
+#controls p {
+    padding: 10px;
+    border-radius: 10px;
+}
+
+.white-highlight {
+    background-color: rgba(255,255,255, 0.7);
+}
+
+.footer {
+    width: 100%;
+    position: fixed;
+    bottom: 2px;
 }

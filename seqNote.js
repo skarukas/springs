@@ -97,7 +97,7 @@ export default class SeqNote {
         for (let g of this.glissOutputs) g.redrawPosition()
     }
     updateGraphics(animateDuration = 300) {
-        console.log("updateGraphics called on",this.pitch)
+        //console.log("updateGraphics called on",this.pitch)
         let rect = this.rect, 
             shadowRect = this.shadowRect,
             handle = this.handle, 
@@ -143,6 +143,16 @@ export default class SeqNote {
         this.handle.show();
         this.indicator.show();
     }
+    transposeByOctaves(n) {
+        this.pitch += 12 * n
+        for (let [note, edge] of this.neighbors) {
+            edge.interval = edge.interval.inverse().add(tune.FreqRatio(2,1))
+            edge.updateGraphics(0)
+        }
+        this.redrawPosition(0)
+        this.redrawInputs(0)
+        this.redrawOutputs(0)
+    }
     draw(canvas) {
         // shadow rectangle, shows equal tempered pitch
         this.shadowRect = canvas.rect(this.width, this.height)
@@ -151,7 +161,6 @@ export default class SeqNote {
             .opacity(0.3)
             .radius(2)
             .move(this.x, this.yET);
-
         let fillColor = style.noteFill(this)
 
         // main rectangle, shows adjusted pitch
@@ -219,11 +228,11 @@ export default class SeqNote {
             initialStore: [tune.ETInterval(0)],
             predicate: (edge, child) => child == other,
             combine: (edge, child, interval) => {
-                if (edge.b == child) return [interval.add(edge.interval)]
+                if (edge.maxNote == child) return [interval.add(edge.interval)]
                 else return [interval.add(edge.interval.inverse())]
             },
             successVal: (edge, child, interval) => {
-                if (edge.b == child) return interval.add(edge.interval)
+                if (edge.maxNote == child) return interval.add(edge.interval)
                 else return interval.add(edge.interval.inverse())
             },
             failureVal: () => tune.ETInterval(other.soundingPitch - this.soundingPitch)
@@ -268,6 +277,7 @@ export default class SeqNote {
     }
     connectTo(other, by = guessJIInterval(this.pitch, other.pitch), animateDuration=300) {
         if (this.isConnectedTo(other)) return null;
+
         let edge = new SeqEdge(this, other, by);
         let oldNeighbors = [...SeqNote.graph.get(this).keys()]
 
@@ -312,7 +322,7 @@ export default class SeqNote {
             initialStore: [bend],
             predicate: () => false,
             combine: (edge, child, bend) => {
-                let edgeBend = (edge.b == child)? edge.getBend() : -edge.getBend()
+                let edgeBend = (edge.maxNote == child)? edge.getBend() : -edge.getBend()
                 let newBend = edgeBend + bend
                 child.bend = newBend;
                 child.redrawInputs(animateDuration);

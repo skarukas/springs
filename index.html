@@ -3,8 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Document</title>
+    <title>springs</title>
     <link rel="stylesheet" href="style.css">
+    <link rel="icon" type="image/png" href="/springs_icon.png"/>
     <script src="./jquery-3.5.1.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@svgdotjs/svg.js@3.0/dist/svg.min.js"></script>
     <script src="tune.js" type="module"></script>
@@ -22,16 +23,59 @@
     <script src="main.js" type="module"></script>
 </head>
 <body>
-    <!-- <p>HI!!!</p> -->
+    <div id="controls">
+        <h3 style="text-align: center">
+            springs - a new approach to music editing 
+        </h3>
+        <p class="white-highlight">
+            <strong>Drag the background</strong> - select using a box<br/>
+            <strong>Shift+Drag the background</strong> - move around the editor<br/>
+            <strong>Cmd+Drag the background</strong> - create a note<br/>
+            <strong>Mousewheel</strong> - move around the editor<br/>
+            <strong>Ctrl+Mousewheel</strong> - change the display scale of the editor<br/>
+
+            <strong>Alt+Drag</strong> - copy the selected note(s) and move to a new location<br/>
+            <strong>Cmd+C</strong> - copy<br/>
+            <strong>Cmd+V</strong> - paste<br/>
+            <strong>Cmd+A</strong> - select all<br/>
+            <em>(undo/redo coming soon)</em><br/><br/>
+
+
+            <strong>Drag note body</strong> - move the selected note(s) in pitch and/or time<br/>
+            <strong>Drag right handle</strong> - change the end time of the selected note(s)<br/>
+            <strong>Drag left handle</strong> - change the start time of the selected note(s)<br/>
+            <strong>Drag left square</strong> - connect to another note by the JI interval closest
+            to their current equal-tempered interval<br/><br/>
+
+            <strong>Shift+Drag</strong> - adjust pitch bend of selected note(s)<br/>
+            <strong>Cmd+↑</strong> - transpose up an octave<br/>
+            <strong>Cmd+↓</strong> - transpose down an octave<br/>
+            <strong>Cmd+2</strong> - divide the selected interval in two (or the interval between the selected notes).
+            Also works for numbers 3 to 9<br/>
+            <strong>Cmd+R</strong> - reset the selected note to a pitch bend of zero<br/><br/>
+
+            <strong>Enter</strong> - open an editing screen for adjusting the selected notes or intervals<br/>
+            <strong>Delete</strong> - delete the selected notes or intervals<br/>
+            <strong>Spacebar</strong> - start or stop playback<br/><br/>
+
+            <strong>A W S E D F T G Y H U J K O L P ;</strong> - play back notes using the computer keyboard as a piano keyboard! the given 
+            keys correspond to chromatically ascending pitches from C to E, and they are arranged like on a piano.<br/>
+            <strong>Z X</strong> - shift the computer-piano keyboard up (<strong>X</strong>) or down (<strong>Z</strong>) an octave<br/>
+        </p>
+        <p style="text-align: center" class="white-highlight">
+            <em>this app is still under development. if something goes wrong, press "clear all data" and refresh the page.</em><br/>
+        </p>
+
+    </div>
+
     <div id="sequencer">
-        <!-- <p>hello i am part of the seq</p> -->
         <div id="controls-container"></div>
 
         <div class="seq">
 
             <!-- keyboard -->
             <div class="left-container">
-                <button id="ruler-controls">hi</button>
+                <button id="ruler-controls"></button>
                 <div class="piano-container hidden-scrollable">
                     <div id="roll-keyboard"></div>
                 </div>
@@ -48,7 +92,12 @@
             </div>
         </div>
     </div>
-    <p>HI!!!</p>
+    <div class="footer white-highlight">
+        <p style="font-family: Menlo; text-align: center; font-size: 10px;">
+            <strong>© stephen karukas 2020</strong><br/>
+            this app is still under development and this is only a demo. please come back later :^)
+        </p>
+    </div>
 </body>
 </html>
 
