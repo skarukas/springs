@@ -99,6 +99,7 @@ $(ø => {
                 e.preventDefault();
                 editor.copySelection()
             } else if (e.key == 'r') {
+                e.preventDefault();
                 editor.applyToSelection(editor.resetBend);
             } else if (e.key == 'v') {
                 e.preventDefault();
@@ -120,6 +121,8 @@ $(ø => {
                 editor.applyToSelection(editor.transposeByOctaves, 1)
                 e.preventDefault()
             }
+        } else if (e.key == 'Shift') {
+            editor.setCursorStyle("grab")
         } else if (e.key == " ") {
             e.preventDefault();
             editor.togglePlayback()
@@ -135,6 +138,8 @@ $(ø => {
         if ("awsedftgyhujkolp;".includes(e.key)) {
             let pitch = "awsedftgyhujkolp;".indexOf(e.key)
             keyboard.noteOff(pitch + octaveTransposition)
+        } else if (e.key == 'Shift') {
+            editor.setCursorStyle("default")
         }
     }).on("keypress", e => {
         if ("awsedftgyhujkolp;".includes(e.key)) {
