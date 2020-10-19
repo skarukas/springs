@@ -61,7 +61,7 @@ editor.scale = function(val) {
     keyboard.scale(val)
     keyboard.scroll(editor.scrollX * val, editor.scrollY * val)
     playback.scale(val)
-    editor.scroll(1, 1)
+    editor.deltaScroll(1, 1)
     //keyboard.svg.viewbox(0, 0, keyboard.width, height) // temp
 /*     editor.zoomX *= val;
     editor.zoomY *= val;
@@ -72,22 +72,22 @@ editor.scale = function(val) {
 editor.scrollX = 0;
 editor.scrollY = 0;
 
-editor.scroll = function(dx, dy) {
-
+editor.scroll = function(x, y) {
     let h = $('.right-container').height();
     let w = $('.right-container').width();
 
-    let viewHeight = (editor.height - editor.scrollY + dy) * editor.zoomXY;
-    let viewWidth = (editor.width - editor.scrollX + dx) * editor.zoomXY;
-    
-    if (viewHeight < h && dy > 0) {
+    let viewHeight = (editor.height - y) * editor.zoomXY;
+    let viewWidth = (editor.width - x) * editor.zoomXY;
+
+    if (viewHeight < h) {
         editor.scrollY = editor.height - h/editor.zoomXY;
-    } else if (viewWidth < w && dx > 0) {
+    } else if (viewWidth < w) {
         editor.scrollX = editor.width - w/editor.zoomXY;
     } else {
-        editor.scrollX = Math.max(0, editor.scrollX + dx);
-        editor.scrollY = Math.max(0, editor.scrollY + dy);
+        editor.scrollX = Math.max(0, x);
+        editor.scrollY = Math.max(0, y);
     }
+
     let width = editor.zoomX * editor.widthInTime / editor.zoomXY
     let height = editor.zoomY * editor.numKeys / editor.zoomXY
     editor.canvas.viewbox(editor.scrollX, editor.scrollY, width, height)
@@ -99,9 +99,13 @@ editor.scroll = function(dx, dy) {
     grid.scroll(scrollX, scrollY);
 }
 
+editor.deltaScroll = function(dx, dy) {
+    editor.scroll(editor.scrollX + dx, editor.scrollY + dy)
+}
+
 editor.drag = function(e) {
     let pt = editor.canvas.point(e.x, e.y)
-    editor.scroll(
+    editor.deltaScroll(
         editor.clickStart.x - pt.x,
         editor.clickStart.y - pt.y);
 } 
@@ -311,14 +315,26 @@ editor.compressData = function(objs) {
 editor.updateLocalStorage = function() {
     let compressed = editor.compressData(editor.notes)
     localStorage.setItem("cachedEditor", JSON.stringify(compressed))
+    localStorage.setItem("viewbox", 
+        JSON.stringify({
+            scrollX: editor.scrollX,
+            scrollY: editor.scrollY,
+            scale: editor.zoomXY,
+        }))
 }
 
 editor.loadEditorFromLocalStorage = function() {
-    let stringified = localStorage.getItem("cachedEditor")
-    if (stringified) {
-        let compressed = JSON.parse(stringified)
+    let editorString = localStorage.getItem("cachedEditor")
+    let viewboxString = localStorage.getItem("viewbox")
+    if (editorString) {
+        let compressed = JSON.parse(editorString)
         editor.addCompressedData(compressed)
         editor.deselectAllObjects()
+    }
+    if (viewboxString) {
+        let data = JSON.parse(viewboxString)
+        editor.scroll(data.scrollX, data.scrollY)
+        editor.scale(data.scale)
     }
 }
 

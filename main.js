@@ -159,7 +159,7 @@ $(ø => {
             e.preventDefault()
         } else {
             e.preventDefault()
-            editor.scroll(e.deltaX, e.deltaY)
+            editor.deltaScroll(e.deltaX, e.deltaY)
         }
     }, { passive: false })
 
@@ -195,6 +195,9 @@ $(ø => {
         console.log("loaded demo data:",demo)
         editor.addCompressedData(demo)
         editor.deselectAllObjects()
+        editor.scroll(70, 700)
+        editor.scale(0.9)
+
     } 
 
     $yRange.on('input', ø => editor.zoom(editor.zoomX, +$yRange.val()));
