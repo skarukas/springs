@@ -173,7 +173,7 @@ $(ø => {
     if (!localStorage.getItem("cachedEditor")) {
         $('#controls').delay(500).fadeIn(500)
         // lord help me
-        let demo = `{"notes":[{"pitch":60,"velocity":64,"start":96,"duration":16,"bend":-0.8212},
+        let demo = {"notes":[{"pitch":60,"velocity":64,"start":96,"duration":16,"bend":-0.8212},
         {"pitch":63,"velocity":64,"start":96,"duration":16,"bend":-0.6648000000000001},
         {"pitch":68,"velocity":64,"start":80,"duration":32,"bend":-0.6844},
         {"pitch":68,"velocity":64,"start":32,"duration":32,"bend":-0.2738},
@@ -191,10 +191,9 @@ $(ø => {
         {"id1":6,"id2":7,"interval":"6:5"},{"id1":8,"id2":6,"interval":"4:3"},
         {"id1":4,"id2":9,"interval":"6:5"},{"id1":10,"id2":2,"interval":"5:4"},
         {"id1":10,"id2":11,"interval":"6:5"},{"id1":10,"id2":12,"interval":"4:3"}],
-        "glisses":[]}`;
-        let data = JSON.parse(demo)
-        console.log("loaded demo data:",data)
-        editor.addCompressedData(data)
+        "glisses":[]};
+        console.log("loaded demo data:",demo)
+        editor.addCompressedData(demo)
         editor.deselectAllObjects()
     } 
 
