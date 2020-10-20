@@ -441,8 +441,10 @@ editor.addCompressedData = function(compressed, offsetTime=0, offsetPitch=0) {
 
     /* Navigate to saved view */
     let vb = compressed.viewbox;
-    editor.scroll(vb.scrollX, vb.scrollY)
-    editor.scale(vb.scale)
+    if (vb) {
+        editor.scroll(vb.scrollX, vb.scrollY)
+        editor.scale(vb.scale)
+    }
 
     editor.deselectAllObjects()
     return { notes, edges, glisses }

@@ -462,11 +462,14 @@
       remove() {
         this.line.remove();
         this.text.remove();
-        SeqNote.graph.get(this.a)?.delete(this.b);
-        SeqNote.graph.get(this.b)?.delete(this.a);
-        /* Retune the higher note */
 
-        this.maxNote.propagateBend(0, 300, [this.minNote]);
+        if (SeqNote.graph.has(this.a) && SeqNote.graph.has(this.b)) {
+          SeqNote.graph.get(this.a).delete(this.b);
+          SeqNote.graph.get(this.b).delete(this.a);
+          /* Retune the higher note */
+
+          this.maxNote.propagateBend(0, 300, [this.minNote]);
+        }
       }
 
       updateInterval(newVal) {
@@ -1512,8 +1515,12 @@
 
 
       let vb = compressed.viewbox;
-      editor$1.scroll(vb.scrollX, vb.scrollY);
-      editor$1.scale(vb.scale);
+
+      if (vb) {
+        editor$1.scroll(vb.scrollX, vb.scrollY);
+        editor$1.scale(vb.scale);
+      }
+
       editor$1.deselectAllObjects();
       return {
         notes,
