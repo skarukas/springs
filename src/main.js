@@ -7,9 +7,6 @@ import ruler from "./ruler.js";
 import { addButton, addMessage } from "./util.js";
 
 $(ø => {
-    const $scroller = $('.right-container');
-    const $keyboard = $('.piano-container');
-    const $ruler = $('.ruler-container');
 
     $(document.createElement('div'))
         .css({
@@ -202,4 +199,6 @@ $(ø => {
     $yRange.on('input', ø => editor.zoom(editor.zoomX, +$yRange.val()));
     $xRange.on('input', ø => editor.zoom(+$xRange.val(), editor.zoomY));
 
+    $('.loader-container').fadeOut(1000)
+    $('#sequencer').fadeTo(2000, 1)
 })

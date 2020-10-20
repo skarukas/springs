@@ -29,6 +29,11 @@ body {
    /*  overflow: visible;  */
 }
 
+/* Fade in on load */
+#sequencer {
+    opacity: 0;
+}
+
 .ruler-container {
     z-index: 5;
     height: 20px;
@@ -55,24 +60,6 @@ body {
     color: red;
     font-family: 'Menlo'
 }
-
-/* .ruler-roll {
-    position: relative;
-    height: 400px;
-} */
-
-/* .roll-container {
-    overflow-x: scroll;
-
-    padding-left: 1px;
-    position: relative; 
-    float: left; 
-} */
-
-/* .scrollable-roll {
-    overflow-x: scroll;
-    max-width: 85vw;
-} */
 
 #y-zoom {
     writing-mode: bt-lr; /* IE */
@@ -117,4 +104,61 @@ body {
     width: 100%;
     position: fixed;
     bottom: 2px;
+}
+
+.loader-container {
+    text-align: center;
+    position: fixed;
+    top: 50%;
+    left: 50%;
+}
+
+.loader {
+    padding: 10px;
+    display: inline-block;
+    border-radius: 50%;
+    width: 2px;
+    height: 2px;
+    opacity: 0.5;
+/*     border-top: 16px solid blue;
+    border-right: 16px solid green;
+    border-bottom: 16px solid red;
+    border-left: 16px solid pink; */
+    transform: scale(0);
+    -webkit-transform: scale(0);
+    -webkit-animation: pulse 1.5s linear infinite;
+    animation: pulse 1.5s linear infinite;
+}
+
+.loader:nth-child(2) {
+    background-color: rgb(0, 119, 255);
+    animation-delay: 0s 
+}
+.loader:nth-child(3) { 
+    background-color: rgb(0, 174, 255);
+    animation-delay: 0.25s 
+}
+.loader:nth-child(4) { 
+    background-color: rgb(0, 247, 255);
+    animation-delay: 0.5s 
+}
+.loader:nth-child(5) { 
+    background-color: rgb(0, 255, 157);
+    animation-delay: 0.75s 
+}
+.loader:nth-child(6) { 
+    background-color: rgb(0, 255, 64);
+    animation-delay: 1s; 
+}
+
+@-webkit-keyframes pulse {
+    0% { -webkit-transform: scale(0); }
+    40% { -webkit-transform: scale(1); }
+    80% { -webkit-transform: scale(0); }
+}
+  
+@keyframes pulse {
+    0% { transform: scale(0); }
+    40% { transform: scale(1); }
+    80% { transform: scale(0); }
 }

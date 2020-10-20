@@ -2289,9 +2289,6 @@
     };
 
     $(ø => {
-      const $scroller = $('.right-container');
-      const $keyboard = $('.piano-container');
-      const $ruler = $('.ruler-container');
       $(document.createElement('div')).css({
         position: 'absolute',
         bottom: 20,
@@ -2563,6 +2560,8 @@
 
       $yRange.on('input', ø => editor$1.zoom(editor$1.zoomX, +$yRange.val()));
       $xRange.on('input', ø => editor$1.zoom(+$xRange.val(), editor$1.zoomY));
+      $('.loader-container').fadeOut(1000);
+      $('#sequencer').fadeTo(2000, 1);
     });
 
 }());
