@@ -1,0 +1,28 @@
+{
+  "name": "springs",
+  "version": "1.0.0",
+  "description": "",
+  "main": "main.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "build": "rollup --config"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/skarukas/springs.git"
+  },
+  "author": "Stephen Karukas <stephen.karukas@gmail.com>",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/skarukas/springs/issues"
+  },
+  "homepage": "https://github.com/skarukas/springs#readme",
+  "dependencies": {
+    "rollup": "^2.32.0"
+  },
+  "devDependencies": {
+    "@babel/core": "^7.12.3",
+    "@rollup/plugin-babel": "^5.2.1",
+    "babel": "^6.23.0"
+  }
+}
