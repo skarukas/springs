@@ -68,7 +68,7 @@ export function addMessage(text, color='black') {
         .addClass('warning')
         .css({color})
         .appendTo($('.warn-container'))
-    a.delay(2000).fadeOut(3000, () => a.remove())
+    a.delay(1000).fadeOut(2000, () => a.remove())
 }
 
 export function addButton(text, parent=$('#controls-container')) {

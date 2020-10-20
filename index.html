@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>springs</title>
     <link rel="stylesheet" href="style.css">
-    <link rel="icon" type="image/png" href="springs_icon.png"/>
+    <link rel="icon" type="image/png" href="assets/springs_icon.png"/>
     <script src="src/include/jquery-3.5.1.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@svgdotjs/svg.js@3.0/dist/svg.min.js"></script>
     <script src="src/include/tune.js"></script>
@@ -52,7 +52,8 @@
 
             <strong>Enter</strong> - open an editing screen for adjusting the selected notes or intervals<br/>
             <strong>Delete</strong> - delete the selected notes or intervals<br/>
-            <strong>Spacebar</strong> - start or stop playback<br/><br/>
+            <strong>Spacebar</strong> - start or stop playback<br/>
+            <strong>Shift+Spacebar</strong> - start or stop playback of only the selected notes<br/><br/>
 
             <strong>A W S E D F T G Y H U J K O L P ;</strong> - play back notes using the computer keyboard as a piano keyboard! the given 
             keys correspond to chromatically ascending pitches from C to E, and they are arranged like on a piano.<br/>
@@ -65,7 +66,12 @@
     </div>
 
     <div id="sequencer">
-        <div id="controls-container"></div>
+        <div id="controls-container">
+            <div class="filename-container">
+                <input maxwidth="10" type="text" title="Rename" class="filename" placeholder="untitled"/>
+            </div>
+            <div class="file-button-container"></div>
+        </div>
 
         <div class="seq">
 

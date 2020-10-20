@@ -7,23 +7,60 @@ import ruler from "./ruler.js";
 import { addButton, addMessage } from "./util.js";
 
 $(ø => {
-
     $(document.createElement('div'))
         .css({
             position: 'absolute',
             bottom: 20,
             right: 20,
-        })
-        .addClass("warn-container")
+        }).addClass("warn-container")
         .appendTo('body')
+
+    const $controls = $('#controls-container')
+
+    createImageButton("assets/download_icon.png", editor.saveJSONFile)
+        .attr('title', 'Download file as .json')
+
+    createImageButton("assets/open_icon.png", ø => $filePick.trigger('click'))
+        .attr('title', 'Open .json file')
+
+    let $filePick = $(document.createElement('input'))
+        .attr('type', 'file')
+        .css('display', 'none')
+        .on('change', e => editor.openJSONFile(e.target.files[0]))
+        .appendTo($controls)
+
+    createImageButton("assets/copy_icon.png", editor.copyJSONToClipboard)
+        .attr('title', 'Copy file to clipboard')
+    createImageButton("assets/paste_icon.png", editor.pasteJSONFromClipboard)
+        .attr('title', 'Load file from clipboard')
+
+    const $fileName = $('.filename')
+        .on('keydown', e => {
+            e.stopPropagation()
+            if (e.key == 'Enter' || e.key == 'Escape') $fileName.blur();
+        }).on('keypress', e => e.stopPropagation())
+        .on('input', ø => editor.fileName = $fileName.val())
+
+    function createImageButton(url, callback) {
+        let $button = $(document.createElement('button'))
+            .on('click', callback)
+            .appendTo('.file-button-container')
+            .addClass("icon-button")
+
+        $(`<img src="${url}"/>`)
+            .attr({
+                height: 15,
+                width: 15,
+            }).appendTo($button)
+        return $button;
+    }
 
     addButton("Show Controls")
         .on('click', ø => $('#controls').fadeIn(500));
-
     addButton("Fit to Harmonic Series!")
         .on('click', ø => editor.applyToSelection(editor.tuneAsPartials));
     addButton("Clear all data")
-        .on('click', ø => editor.clearAllData())
+        .on('click', editor.clearAllData)
 
     let $eqButton = addButton('Equally Divide')
         .on('click', ø => editor.applyToSelection(editor.equallyDivide, $divisions.val()));
@@ -34,14 +71,23 @@ $(ø => {
             min: 2,
             max: 20,
             value: 2
-        })
-        .on('keydown', e => {
+        }).on('keydown', e => {
             if (e.key == 'Enter') {
                 $eqButton.trigger('click')
                 e.stopPropagation()
             }
-        })
-        .appendTo('#controls-container')
+        }).appendTo($controls)
+
+    $(document.createTextNode('bpm:')).appendTo($controls)
+    const $tempo = $(document.createElement('input'))
+        .attr({
+            type: 'number',
+            min: 80,
+            max: 200,
+            value: 120
+        }).on('input', ø => {
+            playback.bpm = parseInt($tempo.val())
+        }).appendTo($controls)
 
 
     const $xRange = $(document.createElement('input'))
@@ -51,13 +97,12 @@ $(ø => {
             min: 4,
             max: 16,
             step: 0.1
-        })
-        .css({
+        }).css({
             position: 'absolute',
             right: 20,
             bottom: 10
-        })
-        .appendTo($('.seq'))
+        }).appendTo($('.seq'))
+        
     const $yRange = $(document.createElement('input'))
         .attr({
             id:'y-zoom',
@@ -66,13 +111,11 @@ $(ø => {
             max: "16",
             orient: 'vertical',
             step: 0.1
-        })
-        .css({
+        }).css({
             position: 'absolute',
             right: 10,
             bottom: 20
-        })
-        .appendTo($('.seq'))
+        }).appendTo($('.seq'))
 
     editor.draw();
     ruler.draw();
@@ -110,12 +153,20 @@ $(ø => {
                 editor.updateLocalStorage()
                 e.preventDefault()
                 addMessage(`Saved at ${(new Date()).toUTCString()}`, 'green')
+            } else if (e.key == 'o') {
+                $filePick.trigger('click')
+                e.preventDefault()
             } else if (e.key == 'ArrowDown') {
                 editor.applyToSelection(editor.transposeByOctaves, -1)
                 e.preventDefault()
             } else if (e.key == 'ArrowUp') {
                 editor.applyToSelection(editor.transposeByOctaves, 1)
                 e.preventDefault()
+            }
+        } else if (e.shiftKey) {
+            if (e.key == " ") {
+                e.preventDefault();
+                editor.togglePlaybackSelection();
             }
         } else if (e.key == 'Shift') {
             editor.setCursorStyle("grab")
@@ -166,7 +217,7 @@ $(ø => {
 
     $('#controls').on('click', e => $('#controls').fadeOut(500))
     // show controls for new users and load demo
-    if (!localStorage.getItem("cachedEditor")) {
+    if (!localStorage.getItem("editor")) {
         $('#controls').delay(500).fadeIn(500)
         // lord help me
         let demo = {"notes":[{"pitch":60,"velocity":64,"start":96,"duration":16,"bend":-0.8212},
@@ -187,7 +238,8 @@ $(ø => {
         {"id1":6,"id2":7,"interval":"6:5"},{"id1":8,"id2":6,"interval":"4:3"},
         {"id1":4,"id2":9,"interval":"6:5"},{"id1":10,"id2":2,"interval":"5:4"},
         {"id1":10,"id2":11,"interval":"6:5"},{"id1":10,"id2":12,"interval":"4:3"}],
-        "glisses":[]};
+        "glisses":[],
+        "viewbox":{"scrollX":79,"scrollY":709,"scale":0.9}};
         console.log("loaded demo data:",demo)
         editor.addCompressedData(demo)
         editor.deselectAllObjects()

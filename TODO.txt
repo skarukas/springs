@@ -15,6 +15,9 @@
 /- Add editable edge intervals
 /- problem with octave transposition screwing up intervals/edges
 /- make grid non-svg (canvas/image?)
+/- play selection
+/- copy to clipboard
+/- load from file/clipboard
 
 
 - Make color more visible
@@ -32,15 +35,19 @@
     /- box select now screwed up
     /- need keyboard and ruler to scale with the zoom amount
     - fix aspect ratio of editor? make it slightly editable?
-    - edit menu zoom messed up
+    /- edit menu zoom messed up
     - Fix zoom range options
-    - check all references to grid draw
+    /- check all references to grid draw
 - enable redrawing of canvas
-- zoom still big problem :-(
+/- zoom still big problem :-(
 - create scrollbars?
 - make audioparam smoother
 - saved glisses are corrupt
-- make it work on safari
+/- make it work on safari
 - sometimes notes get moved over before measure 1 ??
 - makes glisses deletable when deleting notes
 - add comments in editor
+/- save to file
+- integrate copy/paste with clipboard?
+- pasting one note doesn't copy its bend
+- save title in json

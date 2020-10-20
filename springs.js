@@ -187,7 +187,7 @@
       let a = $(document.createElement('p')).text(text).addClass('warning').css({
         color
       }).appendTo($('.warn-container'));
-      a.delay(2000).fadeOut(3000, () => a.remove());
+      a.delay(1000).fadeOut(2000, () => a.remove());
     }
     function addButton(text, parent = $('#controls-container')) {
       return $(document.createElement('button')).text(text).appendTo(parent);
@@ -1130,12 +1130,15 @@
     editor$1.timeGridSize = 1;
     editor$1.zoomX = 8;
     editor$1.zoomY = 16;
+    editor$1.zoomXY = 1;
+    editor$1.scrollX = 0;
+    editor$1.scrollY = 0;
     editor$1.widthInTime = 1024;
     editor$1.numKeys = 128;
     editor$1.selectedObject = null;
     editor$1.mousePosn = undefined;
+    editor$1.fileName = undefined;
     editor$1.canvas = SVG().addTo('#piano-roll').size(editor$1.zoomX * editor$1.widthInTime, editor$1.zoomY * editor$1.numKeys).viewbox(0, 0, editor$1.width, editor$1.height);
-    editor$1.zoomXY = 1;
 
     editor$1.scale = function (val) {
       if (val < 0.28) return;
@@ -1149,16 +1152,8 @@
       keyboard.scale(val);
       keyboard.scroll(editor$1.scrollX * val, editor$1.scrollY * val);
       playback.scale(val);
-      editor$1.deltaScroll(1, 1); //keyboard.svg.viewbox(0, 0, keyboard.width, height) // temp
-
-      /*     editor.zoomX *= val;
-          editor.zoomY *= val;
-          ruler.zoom(editor.zoomX, editor.zoomY)
-          keyboard.zoom(editor.zoomX, editor.zoomY) */
+      editor$1.deltaScroll(1, 1);
     };
-
-    editor$1.scrollX = 0;
-    editor$1.scrollY = 0;
 
     editor$1.scroll = function (x, y) {
       let h = $('.right-container').height();
@@ -1306,6 +1301,80 @@
       let notes = editor$1.selection.filter(e => e instanceof SeqNote);
       editor$1.clipboard = editor$1.compressData(notes);
     };
+
+    editor$1.getEditorJSON = function () {
+      let compressed = editor$1.compressData(editor$1.notes);
+      return { ...compressed,
+        viewbox: {
+          scrollX: editor$1.scrollX,
+          scrollY: editor$1.scrollY,
+          scale: editor$1.zoomXY
+        }
+      };
+    };
+
+    editor$1.saveJSONFile = function () {
+      let json = editor$1.getEditorJSON();
+      let jsonString = JSON.stringify(json);
+      console.log(jsonString);
+      let file = new Blob([jsonString], {
+        type: 'application/json'
+      });
+      let url = URL.createObjectURL(file);
+      console.log(url);
+      let a = document.createElement('a');
+      a.href = URL.createObjectURL(file);
+      a.download = editor$1.fileName || "untitled";
+      a.click();
+      URL.revokeObjectURL(a.href);
+    };
+
+    editor$1.openJSONFile = function (file) {
+      if (file) {
+        let reader = new FileReader();
+        reader.readAsText(file);
+
+        reader.onload = e => {
+          try {
+            let json = JSON.parse(reader.result);
+
+            if (json) {
+              editor$1.clearAllData();
+              editor$1.addCompressedData(json);
+              let name = file.name.replace(/\..+$/, "");
+              $('.filename').val(name);
+              editor$1.fileName = name;
+              addMessage(`Loaded ${file.name}.`, 'green');
+            } else throw "";
+          } catch {
+            addMessage("Unable to parse file.", 'red');
+          }
+        };
+      }
+    };
+
+    editor$1.copyJSONToClipboard = function () {
+      let json = editor$1.getEditorJSON();
+      let jsonString = JSON.stringify(json);
+      navigator.clipboard.writeText(jsonString).then(ø => {
+        addMessage("Copied file to clipboard.", 'green');
+      });
+    };
+
+    editor$1.pasteJSONFromClipboard = function () {
+      navigator.clipboard.readText().then(txt => {
+        try {
+          let json = JSON.parse(txt);
+
+          if (json) {
+            editor$1.clearAllData();
+            editor$1.addCompressedData(json);
+          } else throw "";
+        } catch {
+          addMessage("Unable to parse clipboard.", 'red');
+        }
+      });
+    };
     /* Automatically stores edges between notes as well */
 
 
@@ -1393,30 +1462,14 @@
     };
 
     editor$1.updateLocalStorage = function () {
-      let compressed = editor$1.compressData(editor$1.notes);
-      localStorage.setItem("cachedEditor", JSON.stringify(compressed));
-      localStorage.setItem("viewbox", JSON.stringify({
-        scrollX: editor$1.scrollX,
-        scrollY: editor$1.scrollY,
-        scale: editor$1.zoomXY
-      }));
+      let json = editor$1.getEditorJSON();
+      localStorage.setItem("editor", JSON.stringify(json));
     };
 
     editor$1.loadEditorFromLocalStorage = function () {
-      let editorString = localStorage.getItem("cachedEditor");
-      let viewboxString = localStorage.getItem("viewbox");
-
-      if (editorString) {
-        let compressed = JSON.parse(editorString);
-        editor$1.addCompressedData(compressed);
-        editor$1.deselectAllObjects();
-      }
-
-      if (viewboxString) {
-        let data = JSON.parse(viewboxString);
-        editor$1.scroll(data.scrollX, data.scrollY);
-        editor$1.scale(data.scale);
-      }
+      let jsonString = localStorage.getItem("editor");
+      let json = JSON.parse(jsonString);
+      if (json) editor$1.addCompressedData(json);
     };
 
     editor$1.clearAllData = function () {
@@ -1424,7 +1477,6 @@
     };
 
     editor$1.addCompressedData = function (compressed, offsetTime = 0, offsetPitch = 0) {
-      editor$1.deselectAllObjects();
       let notes = [];
       let edges = [];
       let glisses = [];
@@ -1456,7 +1508,13 @@
         let gliss = editor$1.gliss(notes[glissObj.start], notes[glissObj.end]);
         glisses.push(gliss);
       }
+      /* Navigate to saved view */
 
+
+      let vb = compressed.viewbox;
+      editor$1.scroll(vb.scrollX, vb.scrollY);
+      editor$1.scale(vb.scale);
+      editor$1.deselectAllObjects();
       return {
         notes,
         edges,
@@ -1491,6 +1549,22 @@
       for (let note of notes) editor$1.toggleObjectInSelection(note);
 
       for (let edge of edges) editor$1.toggleObjectInSelection(edge);
+    };
+
+    editor$1.togglePlaybackSelection = function () {
+      if (playback.playing) {
+        audio.pause();
+        playback.pause();
+      } else {
+        let notes = editor$1.selection.filter(e => e instanceof SeqNote);
+        if (!notes.length) return;
+        let minX = Infinity;
+
+        for (let note of notes) minX = Math.min(minX, note.x);
+
+        playback.play(minX);
+        audio.playNotes(notes);
+      }
     };
 
     editor$1.togglePlayback = function () {
@@ -2093,10 +2167,6 @@
 
     window.editor = editor$1;
 
-    window.notes = ø => editor$1.notes;
-
-    window.edges = ø => editor$1.edges;
-
     const playback = {
       draw() {
         this.line = editor$1.canvas.line().stroke({
@@ -2294,9 +2364,29 @@
         bottom: 20,
         right: 20
       }).addClass("warn-container").appendTo('body');
+      const $controls = $('#controls-container');
+      createImageButton("assets/download_icon.png", editor$1.saveJSONFile).attr('title', 'Download file as .json');
+      createImageButton("assets/open_icon.png", ø => $filePick.trigger('click')).attr('title', 'Open .json file');
+      let $filePick = $(document.createElement('input')).attr('type', 'file').css('display', 'none').on('change', e => editor$1.openJSONFile(e.target.files[0])).appendTo($controls);
+      createImageButton("assets/copy_icon.png", editor$1.copyJSONToClipboard).attr('title', 'Copy file to clipboard');
+      createImageButton("assets/paste_icon.png", editor$1.pasteJSONFromClipboard).attr('title', 'Load file from clipboard');
+      const $fileName = $('.filename').on('keydown', e => {
+        e.stopPropagation();
+        if (e.key == 'Enter' || e.key == 'Escape') $fileName.blur();
+      }).on('keypress', e => e.stopPropagation()).on('input', ø => editor$1.fileName = $fileName.val());
+
+      function createImageButton(url, callback) {
+        let $button = $(document.createElement('button')).on('click', callback).appendTo('.file-button-container').addClass("icon-button");
+        $(`<img src="${url}"/>`).attr({
+          height: 15,
+          width: 15
+        }).appendTo($button);
+        return $button;
+      }
+
       addButton("Show Controls").on('click', ø => $('#controls').fadeIn(500));
       addButton("Fit to Harmonic Series!").on('click', ø => editor$1.applyToSelection(editor$1.tuneAsPartials));
-      addButton("Clear all data").on('click', ø => editor$1.clearAllData());
+      addButton("Clear all data").on('click', editor$1.clearAllData);
       let $eqButton = addButton('Equally Divide').on('click', ø => editor$1.applyToSelection(editor$1.equallyDivide, $divisions.val()));
       const $divisions = $(document.createElement('input')).attr({
         type: 'number',
@@ -2308,7 +2398,16 @@
           $eqButton.trigger('click');
           e.stopPropagation();
         }
-      }).appendTo('#controls-container');
+      }).appendTo($controls);
+      $(document.createTextNode('bpm:')).appendTo($controls);
+      const $tempo = $(document.createElement('input')).attr({
+        type: 'number',
+        min: 80,
+        max: 200,
+        value: 120
+      }).on('input', ø => {
+        playback.bpm = parseInt($tempo.val());
+      }).appendTo($controls);
       const $xRange = $(document.createElement('input')).attr({
         id: 'x-zoom',
         type: "range",
@@ -2367,12 +2466,20 @@
             editor$1.updateLocalStorage();
             e.preventDefault();
             addMessage(`Saved at ${new Date().toUTCString()}`, 'green');
+          } else if (e.key == 'o') {
+            $filePick.trigger('click');
+            e.preventDefault();
           } else if (e.key == 'ArrowDown') {
             editor$1.applyToSelection(editor$1.transposeByOctaves, -1);
             e.preventDefault();
           } else if (e.key == 'ArrowUp') {
             editor$1.applyToSelection(editor$1.transposeByOctaves, 1);
             e.preventDefault();
+          }
+        } else if (e.shiftKey) {
+          if (e.key == " ") {
+            e.preventDefault();
+            editor$1.togglePlaybackSelection();
           }
         } else if (e.key == 'Shift') {
           editor$1.setCursorStyle("grab");
@@ -2425,7 +2532,7 @@
 
       $('#controls').on('click', e => $('#controls').fadeOut(500)); // show controls for new users and load demo
 
-      if (!localStorage.getItem("cachedEditor")) {
+      if (!localStorage.getItem("editor")) {
         $('#controls').delay(500).fadeIn(500); // lord help me
 
         let demo = {
@@ -2549,7 +2656,12 @@
             "id2": 12,
             "interval": "4:3"
           }],
-          "glisses": []
+          "glisses": [],
+          "viewbox": {
+            "scrollX": 79,
+            "scrollY": 709,
+            "scale": 0.9
+          }
         };
         console.log("loaded demo data:", demo);
         editor$1.addCompressedData(demo);

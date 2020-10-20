@@ -106,6 +106,20 @@ body {
     bottom: 2px;
 }
 
+.filename {
+    border: none;
+    font-size: 14pt;
+}
+
+.icon-button {
+    opacity: 0.5;
+    background: none;
+    border: none;
+}
+
+.icon-button:hover {
+    opacity: 1;
+}
 
 
 .loader-container {

@@ -38,17 +38,21 @@ editor.action = null;
 editor.timeGridSize = 1;
 editor.zoomX = 8;
 editor.zoomY = 16;
+editor.zoomXY = 1;
+editor.scrollX = 0;
+editor.scrollY = 0;
 editor.widthInTime = 1024;
 editor.numKeys = 128;
 editor.selectedObject = null;
 editor.mousePosn = undefined;
+editor.fileName = undefined;
 
 editor.canvas = SVG()
     .addTo('#piano-roll')
     .size(editor.zoomX * editor.widthInTime, editor.zoomY * editor.numKeys)
     .viewbox(0, 0, editor.width, editor.height)
 
-editor.zoomXY = 1;
+
 editor.scale = function(val) {
     if (val < 0.28) return
     let width = editor.zoomX * editor.widthInTime / val
@@ -62,15 +66,7 @@ editor.scale = function(val) {
     keyboard.scroll(editor.scrollX * val, editor.scrollY * val)
     playback.scale(val)
     editor.deltaScroll(1, 1)
-    //keyboard.svg.viewbox(0, 0, keyboard.width, height) // temp
-/*     editor.zoomX *= val;
-    editor.zoomY *= val;
-    ruler.zoom(editor.zoomX, editor.zoomY)
-    keyboard.zoom(editor.zoomX, editor.zoomY) */
 }
-
-editor.scrollX = 0;
-editor.scrollY = 0;
 
 editor.scroll = function(x, y) {
     let h = $('.right-container').height();
@@ -234,6 +230,81 @@ editor.copySelection = function() {
     editor.clipboard = editor.compressData(notes)
 }
 
+editor.getEditorJSON = function() {
+    let compressed = editor.compressData(editor.notes)
+    return {
+        ...compressed,
+        viewbox: {
+            scrollX: editor.scrollX,
+            scrollY: editor.scrollY,
+            scale: editor.zoomXY,
+        }
+    }
+}
+
+editor.saveJSONFile = function() {
+    let json = editor.getEditorJSON()
+    let jsonString = JSON.stringify(json)
+    console.log(jsonString)
+    let file = new Blob([jsonString], {type: 'application/json'});
+    let url = URL.createObjectURL(file);
+    console.log(url)
+    let a = document.createElement('a')
+    a.href= URL.createObjectURL(file);
+    a.download = editor.fileName || "untitled";
+    a.click();
+  
+    URL.revokeObjectURL(a.href);
+}
+
+editor.openJSONFile = function(file) {
+    if (file) {
+        let reader = new FileReader();
+        reader.readAsText(file)
+        reader.onload = e => {
+            try {
+                let json = JSON.parse(reader.result)
+                if (json) {
+                    editor.clearAllData()
+                    editor.addCompressedData(json)
+                    let name = file.name.replace(/\..+$/, "")
+                    $('.filename').val(name)
+                    editor.fileName = name;
+                    addMessage(`Loaded ${file.name}.`, 'green')
+                } else throw "";
+            } catch {
+                addMessage("Unable to parse file.", 'red')
+            }
+        }
+    }
+}
+
+editor.copyJSONToClipboard = function() {
+    let json = editor.getEditorJSON()
+    let jsonString = JSON.stringify(json)
+    navigator.clipboard
+        .writeText(jsonString)
+        .then(ø => {
+            addMessage("Copied file to clipboard.", 'green')    
+        })
+}
+
+editor.pasteJSONFromClipboard = function() {
+    navigator.clipboard
+        .readText()
+        .then(txt => {
+            try {
+                let json = JSON.parse(txt)
+                if (json) {
+                    editor.clearAllData()
+                    editor.addCompressedData(json)
+                } else throw "";
+            } catch {
+                addMessage("Unable to parse clipboard.", 'red')
+            }
+        })
+}
+
 /* Automatically stores edges between notes as well */
 editor.compressData = function(objs) {
     let compressed = {
@@ -313,29 +384,14 @@ editor.compressData = function(objs) {
 }
 
 editor.updateLocalStorage = function() {
-    let compressed = editor.compressData(editor.notes)
-    localStorage.setItem("cachedEditor", JSON.stringify(compressed))
-    localStorage.setItem("viewbox", 
-        JSON.stringify({
-            scrollX: editor.scrollX,
-            scrollY: editor.scrollY,
-            scale: editor.zoomXY,
-        }))
+    let json = editor.getEditorJSON()
+    localStorage.setItem("editor", JSON.stringify(json))
 }
 
 editor.loadEditorFromLocalStorage = function() {
-    let editorString = localStorage.getItem("cachedEditor")
-    let viewboxString = localStorage.getItem("viewbox")
-    if (editorString) {
-        let compressed = JSON.parse(editorString)
-        editor.addCompressedData(compressed)
-        editor.deselectAllObjects()
-    }
-    if (viewboxString) {
-        let data = JSON.parse(viewboxString)
-        editor.scroll(data.scrollX, data.scrollY)
-        editor.scale(data.scale)
-    }
+    let jsonString = localStorage.getItem("editor")
+    let json = JSON.parse(jsonString)
+    if (json) editor.addCompressedData(json)
 }
 
 editor.clearAllData = function() {
@@ -343,7 +399,6 @@ editor.clearAllData = function() {
 }
 
 editor.addCompressedData = function(compressed, offsetTime=0, offsetPitch=0) {
-    editor.deselectAllObjects()
 
     let notes = [];
     let edges = [];
@@ -384,6 +439,12 @@ editor.addCompressedData = function(compressed, offsetTime=0, offsetPitch=0) {
         glisses.push(gliss)
     }
 
+    /* Navigate to saved view */
+    let vb = compressed.viewbox;
+    editor.scroll(vb.scrollX, vb.scrollY)
+    editor.scale(vb.scale)
+
+    editor.deselectAllObjects()
     return { notes, edges, glisses }
 }
 
@@ -413,6 +474,21 @@ editor.paste = function() {
 
     for (let note of notes) editor.toggleObjectInSelection(note)
     for (let edge of edges) editor.toggleObjectInSelection(edge)
+}
+
+editor.togglePlaybackSelection = function() {
+    if (playback.playing) {
+        audio.pause();
+        playback.pause();
+    } else {
+        let notes = editor.selection.filter(e => e instanceof SeqNote)
+        if (!notes.length) return;
+
+        let minX = Infinity
+        for (let note of notes) minX = Math.min(minX, note.x);
+        playback.play(minX);
+        audio.playNotes(notes);
+    }
 }
 
 editor.togglePlayback = function() {
@@ -977,5 +1053,3 @@ editor.show = function(show) {
 
 // for debugging purposes
 window.editor = editor;
-window.notes = ø => editor.notes;
-window.edges = ø => editor.edges;
