@@ -12,10 +12,10 @@ import style from "./style.js"
 export default class SeqNote {
 
     constructor(pitch, velocity, start, duration) {
-        this.pitch = pitch;
+        this._pitch = pitch;
         this._velocity = velocity;
-        this.start = start;
-        this.end = start + duration
+        this._start = start;
+        this._end = start + duration
         this.glissInputs = [];
         this.glissOutputs = [];
         this._bend = 0;
@@ -25,24 +25,67 @@ export default class SeqNote {
         this._velocity = val.clamp(0, 128);
         this.shadowRect.fill(style.noteShadowFill(this))
         this.rect.fill(style.noteFill(this))
+        for (let g of this.glissOutputs) g.redrawColor()
+        for (let g of this.glissInputs) g.redrawColor()
     }
     get velocity() {
         return this._velocity
+    }
+    get pitch() {
+        return this._pitch;
+    }
+    set pitch(val) {
+        this._pitch = Math.floor(val.clamp(0, 128));
+        this.redrawPosition(0);
+    }
+    set bend(val) {
+        let steps = Math.round(Math.abs(val))
+        if (val > 0.5) {
+            this.pitch += steps
+            this._bend = val - steps;
+        } else if (val < -0.5) {
+            this.pitch -= steps
+            this._bend = val + steps;
+        } else {
+            this._bend = val;
+        }
+        this.redrawPosition(0)
+    }
+    get bend() {
+        return this._bend;
+    }
+    set start(val) {
+        this._start = val.clamp(0, Infinity);
+        this.updateGraphics(0)
+        this.redrawInputs(0)
+    }
+    get start() {
+        return this._start
+    }
+    set end(val) {
+        this._end = val.clamp(1, Infinity);
+        this.updateGraphics(0)
+        this.redrawOutputs(0)
+    }
+    get end() {
+        return this._end
+    }
+    /* Set start while keeping duration */
+    set startMove(val) {
+        let d = this.duration;
+        this._start = val;
+        this._end = val + d;
+        this.redrawPosition(0);
+    }
+    
+    get soundingPitch() {
+        return this.bend + this.pitch;
     }
     get frequency() {
         return tune.Util.ETToFreq(this.soundingPitch)
     }
     get duration() {
         return this.end-this.start
-    }
-    set bend(val) {
-        this._bend = val;
-    }
-    get bend() {
-        return this._bend;
-    }
-    get soundingPitch() {
-        return this.bend + this.pitch;
     }
     get x() {
         return this.start * this.seq.zoomX;
@@ -90,6 +133,10 @@ export default class SeqNote {
         this.centDisplay.x((this.handleX - this.height) - this.centDisplay.length() - 5)
             .cy(this.handleY);
         this.resizeRight.move(this.xEnd - 4, this.y);
+
+        // GET RID OF EXTRA CALLS
+        this.redrawOutputs(0)
+        this.redrawInputs(0)
     }
     redrawInputs(animateDuration=300) {
         for (let g of this.glissInputs) g.redrawPosition()
@@ -99,7 +146,7 @@ export default class SeqNote {
         for (let g of this.glissOutputs) g.redrawPosition()
     }
     updateGraphics(animateDuration = 300) {
-        //console.log("updateGraphics called on",this.pitch)
+        console.log("updateGraphics called on",this.pitch)
         let rect = this.rect, 
             shadowRect = this.shadowRect,
             handle = this.handle, 
@@ -152,8 +199,6 @@ export default class SeqNote {
             edge.updateGraphics(0)
         }
         this.redrawPosition(0)
-        this.redrawInputs(0)
-        this.redrawOutputs(0)
     }
     draw(canvas) {
         // shadow rectangle, shows equal tempered pitch

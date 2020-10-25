@@ -5,13 +5,15 @@ require('jzz-midi-smf')(JZZ);
 const MIDI = JZZ.MIDI
 
 const midi = {
-    writeToFile(notes, fileName) {
-        let tempo = 120 // change
-
+    writeToFile(notes, fileName, options) {
+        // Construct multitrack midi data
         let smf = MIDI.SMF()
-        // start with only one track
-        smf.push(MIDI.SMF.MTrk())
-        this.createMIDITracks(notes, smf)
+        let tracks = this.partitionIntoTracks(notes, options)
+        for (let i = 0; i < tracks.length; i++) {
+            let mtrk = MIDI.SMF.MTrk()
+            smf.push(mtrk)
+            tracks[i].forEach(note => addNoteToTrack(note, mtrk))
+        }
 
         // Create and download .mid file
         let str = smf.dump()
@@ -22,50 +24,43 @@ const midi = {
         a.download = (fileName || "untitled") + ".mid";
         a.click();
     },
-    // Create channels so that no two notes are
-    //   playing on the same channel at once
-    // Try to maximize the time before the channel is reused
-    //   to avoid unwanted glisses
-    createMIDITracks(notes, smf) {
-        // The minimum amount of time before another note can be played on 
-        //     the same track. For sounds with releases, this helps avoid
-        //     a sudden pitch shift between consecutive notes
-        let releaseTime = 4;
+    partitionIntoTracks(notes, options={}) {
+        options.releaseTime = options.releaseTime || 0;
 
+        /* Need some logic here to handle glisses... */
+    
         notes = notes.sort((a, b) => a.start - b.start);
         // keep track of the notes in each track
-        let notesInTracks = [[]];
+        let tracks = [[]];
         
         outer: for (let note of notes) {
-            for (let i = 0; i < notesInTracks.length; i++) {
-                let tkArr = notesInTracks[i];
-                if (!tkArr.length || tkArr[tkArr.length-1].end + releaseTime <= note.start) {
-                    this.addNoteToTrack(note, smf[i])
-                    tkArr.push(note)
+            for (let i = 0; i < tracks.length; i++) {
+                let track = tracks[i];
+                if (!track.length || track[track.length-1].end + options.releaseTime <= note.start) {
+                    track.push(note)
                     continue outer;
                 }
             }
             // Have to add a new track if loop is unsuccessful
-            let track = MIDI.SMF.MTrk()
-            smf.push(track)
-            this.addNoteToTrack(note, track)
-            notesInTracks.push([note])
+            tracks.push([note])
         }
-    },
-    addNoteToTrack(note, track) {
-        let tick = note.start * 32
-        let endTick = note.end * 32
-        let pitch = pitchName(note.pitch, true)
-        let velocity = note.velocity
-        let bend = scale14bits(note.bend / 2)
-        track.add(tick, MIDI.noteOn(0, pitch, velocity))
-            .add(tick, MIDI.pitchBend(0, bend))
-            .add(endTick, MIDI.noteOff(0, pitch))
+    
+        return tracks;
     }
 }
 
 export default midi 
 
+function addNoteToTrack(note, track) {
+    let tick = note.start * 32
+    let endTick = note.end * 32
+    let pitch = pitchName(note.pitch, true)
+    let velocity = note.velocity
+    let bend = scale14bits(note.bend / 2)
+    track.add(tick, MIDI.noteOn(0, pitch, velocity))
+        .add(tick, MIDI.pitchBend(0, bend))
+        .add(endTick, MIDI.noteOff(0, pitch))
+}
 
 const scale14bits = (zeroOne) => {
     if ( zeroOne <= 0 ) {

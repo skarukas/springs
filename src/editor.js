@@ -132,9 +132,7 @@ editor.draw = function() {
                 break;
         }
         editor.mousePosn = {x: e.x, y:e.y}
-        //if (!playback.playing && e.buttons == 1) playback.position = e.offsetX;
     }).mousedown(e => {
-        //editor.clickStart = mousePosn(e);
         editor.clickStart = editor.canvas.point(e.x, e.y)
         if (!editor.action) {
             if (e.metaKey) {
@@ -181,8 +179,6 @@ editor.draw = function() {
             editor.selectBox.size(0, 0).hide();
         }
 
-        //seqBender = null;
-        //seqMover = null;
         lastY = null;
         startStarts = undefined;
         startEnds = undefined;
@@ -502,7 +498,6 @@ editor.togglePlayback = function() {
     if (playback.playing) {
         audio.pause();
         playback.pause();
-        //playback.stop();
     } else {
         if (editor.selection.length) {
             let minX = Infinity
@@ -527,7 +522,6 @@ editor.glisser = function(seqConnector, e) {
 }
 
 editor.boxSelect = function(box, e) {
-    //let end = mousePosn(e);
     let end = editor.canvas.point(e.x, e.y)
     let start = editor.clickStart;
     let poly = [
@@ -608,7 +602,6 @@ editor.resetBend = function(_, ...objs) {
     /* Find minimum note of each tree in the forest */
     let minimums = new Set(notes);
     for (let note of notes) {
-        //minimums.add(note)
         for (let neighbor of note.getAllConnected()) {
             if (neighbor != note && minimums.has(neighbor)) {
                 if (note.soundingPitch < neighbor.soundingPitch) {
@@ -702,13 +695,8 @@ editor.move = function(e, objs, forest) {
     if (lastDeltas.x != deltaX) {
         for (let note of notes) {
             let n = startPosns.get(note);
-            let duration = note.duration;
             let anustart = Math.max(n.start + deltaX, 0);
-            note.start = editor.quantizeTime(anustart)
-            note.end = note.start + duration
-            note.redrawPosition(0);
-            note.redrawInputs(0);
-            note.redrawOutputs();
+            note.startMove = editor.quantizeTime(anustart)
         }
     }
     if (lastDeltas.y != deltaY) {
@@ -716,9 +704,6 @@ editor.move = function(e, objs, forest) {
             let n = startPosns.get(note);
             let pitch = (n.pitch - deltaY).clamp(0, editor.numKeys);
             note.pitch = Math.round(pitch)
-            note.redrawPosition(0);
-            note.redrawInputs(0);
-            note.redrawOutputs();
         }
     }
     lastDeltas = {x: deltaX, y: deltaY};
@@ -790,7 +775,6 @@ editor.tuneAsPartials = function(_, ...objs) {
 let startStarts;
 editor.resizeLeft = function(e, ...objs) {
     let notes = objs.filter(e => e instanceof SeqNote)
-    //e = mousePosn(e)
     e = editor.canvas.point(e.x, e.y)
 
     if (!startStarts) {
@@ -802,8 +786,6 @@ editor.resizeLeft = function(e, ...objs) {
     for (let note of notes) {
         let anustart = (startStarts.get(note) + deltaX).clamp(0, note.end-editor.timeGridSize)
         note.start = editor.quantizeTime(anustart)
-        note.updateGraphics(0);
-        note.redrawInputs(0);
     }
 }
 
@@ -821,8 +803,6 @@ editor.resizeRight = function(e, ...objs) {
     for (let note of notes) {
         let anuend = (startEnds.get(note) + deltaX).clamp(note.start+editor.timeGridSize, editor.widthInTime)
         note.end = editor.quantizeTime(anuend)
-        note.updateGraphics(0);
-        note.redrawOutputs();
     }
 }
 
@@ -925,7 +905,6 @@ editor.typeEdit = function(_, ...objs) {
         let box = createEdgeInputBox(edge)
         background.append(box)
         box.on('input', ø => {
-                //box.attr('size', Math.max(box.val().length, 5))
                 let interval = parseIntervalText(box.val())
                 let color = interval? 'green' : 'red';
                 for (let ed of edgeBoxes) {
@@ -993,7 +972,6 @@ function createNoteInputBox(note) {
             e.stopPropagation()
         }).on('submit', ø => {
             note.velocity = parseInt(velocityInput.val()) || note.velocity;
-            note.updateGraphics()
         }).on('keypress', e => {
             if (isNaN(parseInt(e.key))) e.preventDefault()
             e.stopPropagation()
@@ -1008,7 +986,6 @@ function createNoteInputBox(note) {
 editor.connector = function(seqConnector, e) {
     let oldPt = editor.clickStart;
     let newPt = editor.canvas.point(e.x, e.y);
-    //let newPt = mousePosn(e);
     seqConnector.plot(simpleBezierPath(oldPt, newPt, 'vertical')).front().show();
     
     if (!seqConnector.destination) {
@@ -1018,15 +995,13 @@ editor.connector = function(seqConnector, e) {
 }
 
 editor.zoom = function(xZoom, yZoom) {
-    //throw "Zoom problems!!! :(";
     editor.zoomX = xZoom;
     editor.zoomY = yZoom;
-    //seqBackground.size(editor.width * editor.zoomX, numKeys * editor.zoomY);
     for (let note of editor.notes) note.updateGraphics(0);
     for (let edge of editor.edges) edge.updateGraphics(0);
     for (let gliss of editor.glisses) gliss.updateGraphics(0);
     editor.canvas.size(editor.zoomX * editor.widthInTime, editor.zoomY * editor.numKeys);
-    //return
+
     /* right now these rely on editor.zoomX/Y which is problematic--they have to go here */
     grid.zoom(xZoom, yZoom)
     ruler.zoom(xZoom, yZoom)

@@ -46,12 +46,14 @@ export default class SeqGliss {
         editor.assignMouseHandler(this, this.line, "gliss_line")
     }
     updateGraphics() {
+        this.redrawColor()
+        this.redrawPosition()
+    }
+    redrawColor() {
         this.gradient.update(add => {
             add.stop(0, style.noteFill(this.startNote));
             add.stop(1, style.noteFill(this.endNote));
         });
-
-        this.redrawPosition()
     }
     redrawPosition() {
         this.line.plot(simpleBezierPath(

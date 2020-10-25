@@ -727,7 +727,7 @@
         }
 
         this.minNote.propagateBend(0);
-        this.updateGraphics();
+        this.updateGraphics(0);
       } // return the amount the top note will be bent
 
 
@@ -742,10 +742,10 @@
 
     class SeqNote {
       constructor(pitch, velocity, start, duration) {
-        this.pitch = pitch;
+        this._pitch = pitch;
         this._velocity = velocity;
-        this.start = start;
-        this.end = start + duration;
+        this._start = start;
+        this._end = start + duration;
         this.glissInputs = [];
         this.glissOutputs = [];
         this._bend = 0;
@@ -756,10 +756,76 @@
         this._velocity = val.clamp(0, 128);
         this.shadowRect.fill(style.noteShadowFill(this));
         this.rect.fill(style.noteFill(this));
+
+        for (let g of this.glissOutputs) g.redrawColor();
+
+        for (let g of this.glissInputs) g.redrawColor();
       }
 
       get velocity() {
         return this._velocity;
+      }
+
+      get pitch() {
+        return this._pitch;
+      }
+
+      set pitch(val) {
+        this._pitch = Math.floor(val.clamp(0, 128));
+        this.redrawPosition(0);
+      }
+
+      set bend(val) {
+        let steps = Math.round(Math.abs(val));
+
+        if (val > 0.5) {
+          this.pitch += steps;
+          this._bend = val - steps;
+        } else if (val < -0.5) {
+          this.pitch -= steps;
+          this._bend = val + steps;
+        } else {
+          this._bend = val;
+        }
+
+        this.redrawPosition(0);
+      }
+
+      get bend() {
+        return this._bend;
+      }
+
+      set start(val) {
+        this._start = val.clamp(0, Infinity);
+        this.updateGraphics(0);
+        this.redrawInputs(0);
+      }
+
+      get start() {
+        return this._start;
+      }
+
+      set end(val) {
+        this._end = val.clamp(1, Infinity);
+        this.updateGraphics(0);
+        this.redrawOutputs(0);
+      }
+
+      get end() {
+        return this._end;
+      }
+      /* Set start while keeping duration */
+
+
+      set startMove(val) {
+        let d = this.duration;
+        this._start = val;
+        this._end = val + d;
+        this.redrawPosition(0);
+      }
+
+      get soundingPitch() {
+        return this.bend + this.pitch;
       }
 
       get frequency() {
@@ -768,18 +834,6 @@
 
       get duration() {
         return this.end - this.start;
-      }
-
-      set bend(val) {
-        this._bend = val;
-      }
-
-      get bend() {
-        return this._bend;
-      }
-
-      get soundingPitch() {
-        return this.bend + this.pitch;
       }
 
       get x() {
@@ -838,7 +892,10 @@
         this.handle.center(this.handleX, this.handleY);
         this.indicator.center(this.handleX - this.height * 0.8, this.handleY);
         this.centDisplay.x(this.handleX - this.height - this.centDisplay.length() - 5).cy(this.handleY);
-        this.resizeRight.move(this.xEnd - 4, this.y);
+        this.resizeRight.move(this.xEnd - 4, this.y); // GET RID OF EXTRA CALLS
+
+        this.redrawOutputs(0);
+        this.redrawInputs(0);
       }
 
       redrawInputs(animateDuration = 300) {
@@ -852,7 +909,7 @@
       }
 
       updateGraphics(animateDuration = 300) {
-        //console.log("updateGraphics called on",this.pitch)
+        console.log("updateGraphics called on", this.pitch);
         let rect = this.rect,
             shadowRect = this.shadowRect,
             handle = this.handle,
@@ -903,8 +960,6 @@
         }
 
         this.redrawPosition(0);
-        this.redrawInputs(0);
-        this.redrawOutputs(0);
       }
 
       draw(canvas) {
@@ -1131,11 +1186,15 @@
       }
 
       updateGraphics() {
+        this.redrawColor();
+        this.redrawPosition();
+      }
+
+      redrawColor() {
         this.gradient.update(add => {
           add.stop(0, style.noteFill(this.startNote));
           add.stop(1, style.noteFill(this.endNote));
         });
-        this.redrawPosition();
       }
 
       redrawPosition() {
@@ -1156,12 +1215,17 @@
 
     const MIDI = JZZ.MIDI;
     const midi = {
-      writeToFile(notes, fileName) {
+      writeToFile(notes, fileName, options) {
+        // Construct multitrack midi data
+        let smf = MIDI.SMF();
+        let tracks = this.partitionIntoTracks(notes, options);
 
-        let smf = MIDI.SMF(); // start with only one track
+        for (let i = 0; i < tracks.length; i++) {
+          let mtrk = MIDI.SMF.MTrk();
+          smf.push(mtrk);
+          tracks[i].forEach(note => addNoteToTrack(note, mtrk));
+        } // Create and download .mid file
 
-        smf.push(MIDI.SMF.MTrk());
-        this.createMIDITracks(notes, smf); // Create and download .mid file
 
         let str = smf.dump();
         let b64 = JZZ.lib.toBase64(str);
@@ -1172,48 +1236,41 @@
         a.click();
       },
 
-      // Create channels so that no two notes are
-      //   playing on the same channel at once
-      // Try to maximize the time before the channel is reused
-      //   to avoid unwanted glisses
-      createMIDITracks(notes, smf) {
-        // The minimum amount of time before another note can be played on 
-        //     the same track. For sounds with releases, this helps avoid
-        //     a sudden pitch shift between consecutive notes
-        let releaseTime = 4;
+      partitionIntoTracks(notes, options = {}) {
+        options.releaseTime = options.releaseTime || 0;
+        /* Need some logic here to handle glisses... */
+
         notes = notes.sort((a, b) => a.start - b.start); // keep track of the notes in each track
 
-        let notesInTracks = [[]];
+        let tracks = [[]];
 
         outer: for (let note of notes) {
-          for (let i = 0; i < notesInTracks.length; i++) {
-            let tkArr = notesInTracks[i];
+          for (let i = 0; i < tracks.length; i++) {
+            let track = tracks[i];
 
-            if (!tkArr.length || tkArr[tkArr.length - 1].end + releaseTime <= note.start) {
-              this.addNoteToTrack(note, smf[i]);
-              tkArr.push(note);
+            if (!track.length || track[track.length - 1].end + options.releaseTime <= note.start) {
+              track.push(note);
               continue outer;
             }
           } // Have to add a new track if loop is unsuccessful
 
 
-          let track = MIDI.SMF.MTrk();
-          smf.push(track);
-          this.addNoteToTrack(note, track);
-          notesInTracks.push([note]);
+          tracks.push([note]);
         }
-      },
 
-      addNoteToTrack(note, track) {
-        let tick = note.start * 32;
-        let endTick = note.end * 32;
-        let pitch = pitchName(note.pitch, true);
-        let velocity = note.velocity;
-        let bend = scale14bits(note.bend / 2);
-        track.add(tick, MIDI.noteOn(0, pitch, velocity)).add(tick, MIDI.pitchBend(0, bend)).add(endTick, MIDI.noteOff(0, pitch));
+        return tracks;
       }
 
     };
+
+    function addNoteToTrack(note, track) {
+      let tick = note.start * 32;
+      let endTick = note.end * 32;
+      let pitch = pitchName(note.pitch, true);
+      let velocity = note.velocity;
+      let bend = scale14bits(note.bend / 2);
+      track.add(tick, MIDI.noteOn(0, pitch, velocity)).add(tick, MIDI.pitchBend(0, bend)).add(endTick, MIDI.noteOff(0, pitch));
+    }
 
     const scale14bits = zeroOne => {
       if (zeroOne <= 0) {
@@ -1504,9 +1561,8 @@
         editor$1.mousePosn = {
           x: e.x,
           y: e.y
-        }; //if (!playback.playing && e.buttons == 1) playback.position = e.offsetX;
+        };
       }).mousedown(e => {
-        //editor.clickStart = mousePosn(e);
         editor$1.clickStart = editor$1.canvas.point(e.x, e.y);
 
         if (!editor$1.action) {
@@ -1547,9 +1603,7 @@
           // selector box
           editor$1.selectObjectsInBox(editor$1.selectBox);
           editor$1.selectBox.size(0, 0).hide();
-        } //seqBender = null;
-        //seqMover = null;
-
+        }
 
         lastY = null;
         startStarts = undefined;
@@ -1862,7 +1916,7 @@
     editor$1.togglePlayback = function () {
       if (playback.playing) {
         audio.pause();
-        playback.pause(); //playback.stop();
+        playback.pause();
       } else {
         if (editor$1.selection.length) {
           let minX = Infinity;
@@ -1893,7 +1947,6 @@
     };
 
     editor$1.boxSelect = function (box, e) {
-      //let end = mousePosn(e);
       let end = editor$1.canvas.point(e.x, e.y);
       let start = editor$1.clickStart;
       let poly = [[start.x, end.y], [end.x, end.y], [end.x, start.y], [start.x, start.y]];
@@ -1970,7 +2023,6 @@
       let minimums = new Set(notes);
 
       for (let note of notes) {
-        //minimums.add(note)
         for (let neighbor of note.getAllConnected()) {
           if (neighbor != note && minimums.has(neighbor)) {
             if (note.soundingPitch < neighbor.soundingPitch) {
@@ -2079,13 +2131,8 @@
       if (lastDeltas.x != deltaX) {
         for (let note of notes) {
           let n = startPosns.get(note);
-          let duration = note.duration;
           let anustart = Math.max(n.start + deltaX, 0);
-          note.start = editor$1.quantizeTime(anustart);
-          note.end = note.start + duration;
-          note.redrawPosition(0);
-          note.redrawInputs(0);
-          note.redrawOutputs();
+          note.startMove = editor$1.quantizeTime(anustart);
         }
       }
 
@@ -2094,9 +2141,6 @@
           let n = startPosns.get(note);
           let pitch = (n.pitch - deltaY).clamp(0, editor$1.numKeys);
           note.pitch = Math.round(pitch);
-          note.redrawPosition(0);
-          note.redrawInputs(0);
-          note.redrawOutputs();
         }
       }
 
@@ -2177,8 +2221,7 @@
     let startStarts;
 
     editor$1.resizeLeft = function (e, ...objs) {
-      let notes = objs.filter(e => e instanceof SeqNote); //e = mousePosn(e)
-
+      let notes = objs.filter(e => e instanceof SeqNote);
       e = editor$1.canvas.point(e.x, e.y);
 
       if (!startStarts) {
@@ -2192,8 +2235,6 @@
       for (let note of notes) {
         let anustart = (startStarts.get(note) + deltaX).clamp(0, note.end - editor$1.timeGridSize);
         note.start = editor$1.quantizeTime(anustart);
-        note.updateGraphics(0);
-        note.redrawInputs(0);
       }
     };
 
@@ -2214,8 +2255,6 @@
       for (let note of notes) {
         let anuend = (startEnds.get(note) + deltaX).clamp(note.start + editor$1.timeGridSize, editor$1.widthInTime);
         note.end = editor$1.quantizeTime(anuend);
-        note.updateGraphics(0);
-        note.redrawOutputs();
       }
     };
 
@@ -2322,7 +2361,6 @@
         let box = createEdgeInputBox(edge);
         background.append(box);
         box.on('input', ø => {
-          //box.attr('size', Math.max(box.val().length, 5))
           let interval = parseIntervalText(box.val());
           let color = interval ? 'green' : 'red';
 
@@ -2388,7 +2426,6 @@
         e.stopPropagation();
       }).on('submit', ø => {
         note.velocity = parseInt(velocityInput.val()) || note.velocity;
-        note.updateGraphics();
       }).on('keypress', e => {
         if (isNaN(parseInt(e.key))) e.preventDefault();
         e.stopPropagation();
@@ -2402,8 +2439,7 @@
 
     editor$1.connector = function (seqConnector, e) {
       let oldPt = editor$1.clickStart;
-      let newPt = editor$1.canvas.point(e.x, e.y); //let newPt = mousePosn(e);
-
+      let newPt = editor$1.canvas.point(e.x, e.y);
       seqConnector.plot(simpleBezierPath(oldPt, newPt, 'vertical')).front().show();
 
       if (!seqConnector.destination) {
@@ -2413,9 +2449,8 @@
     };
 
     editor$1.zoom = function (xZoom, yZoom) {
-      //throw "Zoom problems!!! :(";
       editor$1.zoomX = xZoom;
-      editor$1.zoomY = yZoom; //seqBackground.size(editor.width * editor.zoomX, numKeys * editor.zoomY);
+      editor$1.zoomY = yZoom;
 
       for (let note of editor$1.notes) note.updateGraphics(0);
 
@@ -2423,8 +2458,7 @@
 
       for (let gliss of editor$1.glisses) gliss.updateGraphics(0);
 
-      editor$1.canvas.size(editor$1.zoomX * editor$1.widthInTime, editor$1.zoomY * editor$1.numKeys); //return
-
+      editor$1.canvas.size(editor$1.zoomX * editor$1.widthInTime, editor$1.zoomY * editor$1.numKeys);
       /* right now these rely on editor.zoomX/Y which is problematic--they have to go here */
 
       grid.zoom(xZoom, yZoom);

@@ -66,3 +66,4 @@
 /- export to midi
 - make open/save menus instead of different buttons
 /- add backgrounnd for "springs" and subtitle
+- octave transposition messed up again... :(

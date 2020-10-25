@@ -113,7 +113,7 @@ export default class SeqEdge {
             this._interval = val.inverse()
         }
         this.minNote.propagateBend(0)
-        this.updateGraphics()
+        this.updateGraphics(0)
     }
     // return the amount the top note will be bent
     getBend() {
