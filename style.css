@@ -56,10 +56,16 @@ body {
 }
 
 .warning {
-    margin: 0;
+    margin: 0px;
     text-align: end;
     color: red;
-    font-family: 'Menlo'
+    font-family: 'Menlo';
+}
+
+.warn-container {
+    position: absolute;
+    bottom: 20px;
+    right: 20px;
 }
 
 #y-zoom {
@@ -141,6 +147,7 @@ body {
     text-align: center;
     position: fixed;
     top: 50%;
+    z-index: 99;
     left: calc(50% - 50px);
 }
 

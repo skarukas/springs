@@ -17,6 +17,7 @@ import {
 import style from "./style.js";
 import playback from "./playbackData.js";
 import audio from "./audio-playback.js";
+import view from "./view.js"
 
 const editor = {
     get width() {
@@ -256,23 +257,26 @@ editor.saveJSONFile = function() {
 
 editor.openJSONFile = function(file) {
     if (file) {
-        let reader = new FileReader();
-        reader.readAsText(file)
-        reader.onload = e => {
-            try {
-                let json = JSON.parse(reader.result)
-                if (json) {
-                    editor.clearAllData()
-                    editor.addCompressedData(json)
-                    let name = file.name.replace(/\..+$/, "")
-                    $('.filename').val(name)
-                    editor.fileName = name;
-                    addMessage(`Loaded ${file.name}.`, 'green')
-                } else throw "";
-            } catch {
-                addMessage("Unable to parse file.", 'red')
+        view.showLoader(`loading ${file.name}...`, ø => {
+            let reader = new FileReader();
+            reader.readAsText(file)
+            reader.onload = e => {
+                try {
+                    let json = JSON.parse(reader.result)
+                    if (json) {
+                        editor.clearAllData()
+                        editor.addCompressedData(json)
+                        let name = file.name.replace(/\..+$/, "")
+                        $('.filename').val(name)
+                        editor.fileName = name;
+                        view.hideLoader()
+                        addMessage(`Loaded ${file.name}.`, 'green')
+                    } else throw "";
+                } catch {
+                    addMessage("Unable to parse file.", 'red')
+                }
             }
-        }
+        })
     }
 }
 
@@ -392,7 +396,36 @@ editor.updateLocalStorage = function() {
 editor.loadEditorFromLocalStorage = function() {
     let jsonString = localStorage.getItem("editor")
     let json = JSON.parse(jsonString)
-    if (json) editor.addCompressedData(json)
+    if (json) {
+        editor.addCompressedData(json)
+    } else {
+        // load demo
+        let demo = {"notes":[{"pitch":60,"velocity":64,"start":96,"duration":16,"bend":-0.8212},
+            {"pitch":63,"velocity":64,"start":96,"duration":16,"bend":-0.6648000000000001},
+            {"pitch":68,"velocity":64,"start":80,"duration":32,"bend":-0.6844},
+            {"pitch":68,"velocity":64,"start":32,"duration":32,"bend":-0.2738},
+            {"pitch":63,"velocity":64,"start":48,"duration":16,"bend":-0.2542},
+            {"pitch":60,"velocity":64,"start":16,"duration":16,"bend":0},
+            {"pitch":64,"velocity":64,"start":16,"duration":32,"bend":-0.1369},
+            {"pitch":67,"velocity":64,"start":16,"duration":16,"bend":0.019500000000000017},
+            {"pitch":59,"velocity":64,"start":32,"duration":16,"bend":-0.11729999999999999},
+            {"pitch":60,"velocity":64,"start":48,"duration":32,"bend":-0.41059999999999997},
+            {"pitch":64,"velocity":64,"start":64,"duration":32,"bend":-0.5475},
+            {"pitch":67,"velocity":64,"start":64,"duration":16,"bend":-0.3911},
+            {"pitch":59,"velocity":64,"start":80,"duration":16,"bend":-0.5279}],
+            "edges":[{"id1":0,"id2":1,"interval":"6:5"},{"id1":1,"id2":2,"interval":"4:3"},
+            {"id1":3,"id2":4,"interval":"4:3"},{"id1":5,"id2":6,"interval":"5:4"},
+            {"id1":6,"id2":7,"interval":"6:5"},{"id1":8,"id2":6,"interval":"4:3"},
+            {"id1":4,"id2":9,"interval":"6:5"},{"id1":10,"id2":2,"interval":"5:4"},
+            {"id1":10,"id2":11,"interval":"6:5"},{"id1":10,"id2":12,"interval":"4:3"}],
+            "glisses":[],
+            "viewbox":{"scrollX":79,"scrollY":709,"scale":0.9}};
+        console.log("loaded demo data:",demo)
+        editor.addCompressedData(demo)
+        editor.deselectAllObjects()
+        editor.scroll(70, 700)
+        editor.scale(0.9) 
+    }
 }
 
 editor.clearAllData = function() {

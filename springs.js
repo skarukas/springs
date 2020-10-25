@@ -48,9 +48,6 @@
       }).appendTo($('.warn-container'));
       a.delay(1000).fadeOut(2000, () => a.remove());
     }
-    function addButton(text, parent = $('#controls-container')) {
-      return $(document.createElement('button')).text(text).appendTo(parent);
-    }
     function pitchName(pitch, includeOctave = false) {
       const pitchNames = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
       let result = pitchNames[tune.Util.mod(Math.round(pitch), 12)];
@@ -139,9 +136,9 @@
 
       draw() {
         ruler.canvas = SVG().addTo('#ruler').size(editor$1.width, ruler.height).mousemove(e => {
-          if (!playback.playing && e.buttons == 1) playback.position = editor$1.canvas.point(e.x, e.y).x;
+          if (!playback$1.playing && e.buttons == 1) playback$1.position = editor$1.canvas.point(e.x, e.y).x;
         }).mousedown(e => {
-          if (!playback.playing) playback.position = editor$1.canvas.point(e.x, e.y).x;
+          if (!playback$1.playing) playback$1.position = editor$1.canvas.point(e.x, e.y).x;
           editor$1.deselectAllObjects();
         });
         this.svg = this.canvas;
@@ -182,7 +179,7 @@
 
     };
 
-    const playback = {
+    const playback$1 = {
       draw() {
         this.line = editor$1.canvas.line().stroke({
           width: 2,
@@ -205,29 +202,29 @@
       },
 
       set position(val) {
-        playback._position = val;
-        playback.line.plot(val, 0, val, editor$1.numKeys * editor$1.zoomY).show();
-        playback.carrot.cx(val * this.scaleVal).show();
+        playback$1._position = val;
+        playback$1.line.plot(val, 0, val, editor$1.numKeys * editor$1.zoomY).show();
+        playback$1.carrot.cx(val * this.scaleVal).show();
       },
 
       get position() {
-        return playback._position;
+        return playback$1._position;
       },
 
       get playing() {
-        return playback.intervalIndex != -1;
+        return playback$1.intervalIndex != -1;
       },
 
-      play(startPosition = playback.position) {
+      play(startPosition = playback$1.position) {
         let start = Date.now();
-        playback.pause();
-        playback.position = startPosition || playback.position;
-        let measureLengthMs = 60000 * this.beatsPerMeasure / playback.bpm;
+        playback$1.pause();
+        playback$1.position = startPosition || playback$1.position;
+        let measureLengthMs = 60000 * this.beatsPerMeasure / playback$1.bpm;
         let measureWidth = this.ticksPerBeat * this.beatsPerMeasure * editor$1.zoomX;
         let fps = 29;
-        playback.line.show().front();
-        playback.carrot.show().front();
-        playback.intervalIndex = setInterval(() => {
+        playback$1.line.show().front();
+        playback$1.carrot.show().front();
+        playback$1.intervalIndex = setInterval(() => {
           let now = Date.now();
           let deltaMs = now - start;
           let measureCount = deltaMs / measureLengthMs;
@@ -235,21 +232,21 @@
           let screenPosn = Math.max(posn - 100, 0) * this.scaleVal; //$scroller.get()[0].scroll(screenPosn, $scroller.scrollTop());
           //$ruler.get()[0].scroll(screenPosn, $ruler.scrollTop());
 
-          playback.position = posn;
-          if (posn >= editor$1.width) playback.stop();
+          playback$1.position = posn;
+          if (posn >= editor$1.width) playback$1.stop();
         }, 1000 / fps);
       },
 
       pause() {
-        clearInterval(playback.intervalIndex);
-        playback.intervalIndex = -1;
+        clearInterval(playback$1.intervalIndex);
+        playback$1.intervalIndex = -1;
       },
 
       stop() {
-        playback.pause();
-        playback.position = 0;
-        playback.line.hide();
-        playback.carrot.hide();
+        playback$1.pause();
+        playback$1.position = 0;
+        playback$1.line.hide();
+        playback$1.carrot.hide();
       },
 
       MIDITimeToSeconds(ticks) {
@@ -257,9 +254,9 @@
       }
 
     };
-    window.start = playback.start;
-    window.stop = playback.stop;
-    window.pause = playback.pause;
+    window.start = playback$1.start;
+    window.stop = playback$1.stop;
+    window.pause = playback$1.pause;
 
     /* Try to remove playback as a dependency */
 
@@ -289,8 +286,8 @@
 
       /* Play a note `start` seconds in the future, ending `end` seconds into the future. */
       playNote(note, start = 0, end = 2.0) {
-        let time = playback.position / editor.zoomX;
-        let offset = playback.MIDITimeToSeconds(time);
+        let time = playback$1.position / editor.zoomX;
+        let offset = playback$1.MIDITimeToSeconds(time);
         let relativeStart = Math.max(0, start - offset);
         let relativeEnd = end - offset;
         if (relativeEnd < 0) return;
@@ -316,13 +313,13 @@
         this.playingNotes.add([a, oscGain]); //if (note.glissInputs.length) return //don't need to play
 
         for (let gliss of note.glissOutputs) {
-          this.playGliss(gliss, end, playback.MIDITimeToSeconds(gliss.endNote.start));
+          this.playGliss(gliss, end, playback$1.MIDITimeToSeconds(gliss.endNote.start));
         }
       },
 
       playGliss(gliss, start = 0, end = 2.0) {
-        let time = playback.position / editor.zoomX;
-        let offset = playback.MIDITimeToSeconds(time);
+        let time = playback$1.position / editor.zoomX;
+        let offset = playback$1.MIDITimeToSeconds(time);
         let relativeStart = Math.max(0, start - offset);
         let relativeEnd = end - offset;
         if (relativeEnd < 0) return;
@@ -349,7 +346,7 @@
 
       playNotes(notes) {
         for (let note of notes) {
-          this.playNote(note, playback.MIDITimeToSeconds(note.start), playback.MIDITimeToSeconds(note.end));
+          this.playNote(note, playback$1.MIDITimeToSeconds(note.start), playback$1.MIDITimeToSeconds(note.end));
         }
       },
 
@@ -780,9 +777,11 @@
         let steps = Math.round(Math.abs(val));
 
         if (val > 0.5) {
+          console.log(val, "means", steps, val - steps);
           this.pitch += steps;
           this._bend = val - steps;
         } else if (val < -0.5) {
+          console.log(val, "means", -steps, val + steps);
           this.pitch -= steps;
           this._bend = val + steps;
         } else {
@@ -910,7 +909,6 @@
       }
 
       updateGraphics(animateDuration = 300) {
-        console.log("updateGraphics called on", this.pitch);
         let rect = this.rect,
             shadowRect = this.shadowRect,
             handle = this.handle,
@@ -1453,6 +1451,137 @@
 
     };
 
+    /* for interaction with the DOM */
+    const view = {
+      $loader: $('.loader-container'),
+      $guiContainer: $('#sequencer'),
+      $controls: $('#controls-container'),
+      $buttonContainer: $('.file-button-container'),
+
+      showLoader(msg, callback) {
+        this.$loader.find("p").text(msg || 'loading...');
+        this.$loader.fadeIn(1000);
+        this.$guiContainer.fadeTo(2000, 0, callback);
+      },
+
+      hideLoader(callback) {
+        this.$loader.fadeOut(1000);
+        this.$guiContainer.fadeTo(2000, 1, callback);
+      },
+
+      addButton(text, parent = this.$controls) {
+        return $(document.createElement('button')).text(text).appendTo(parent);
+      },
+
+      iconButton(imgSrc, callback) {
+        let $button = $(document.createElement('button')).on('click', callback).appendTo(this.$buttonContainer).addClass("icon-button");
+        $(`<img src="${imgSrc}"/>`).attr({
+          height: 15,
+          width: 15
+        }).appendTo($button);
+        return $button;
+      },
+
+      divider() {
+        $('<span></span>').appendTo(this.$buttonContainer).css({
+          'border-left': "2px solid black",
+          'border-radius': 1,
+          'opacity': 0.5,
+          'padding-top': 4
+        });
+      },
+
+      init() {
+        this.iconButton("assets/download_icon.png", editor.saveJSONFile).attr('title', 'Download .spr file');
+        this.iconButton("assets/midi2_icon.png", editor.exportMIDI).attr('title', 'Export .mid file').css({
+          paddingRight: 0,
+          paddingLeft: 0
+        }).children().attr('width', 30);
+        this.iconButton("assets/open_icon.png", ø => $filePick.trigger('click')).attr('title', 'Open .spr file');
+        let $filePick = $(document.createElement('input')).attr('type', 'file').css('display', 'none').on('change', e => {
+          editor.openJSONFile(e.target.files[0]);
+          $filePick.val("");
+        }).appendTo(this.$controls);
+        this.divider();
+        this.iconButton("assets/copy_icon.png", editor.copyJSONToClipboard).attr('title', 'Copy file to clipboard');
+        this.iconButton("assets/paste_icon.png", editor.pasteJSONFromClipboard).attr('title', 'Load file from clipboard');
+        this.divider();
+        this.iconButton("assets/help_icon.png", ø => $('.control-screen').fadeIn(500)).attr('title', 'Show controls');
+        const $fileName = $('.filename').on('keydown', e => {
+          if (e.key == 'Enter' || e.key == 'Escape') $fileName.blur();
+          e.stopPropagation();
+        }).on('keypress', e => e.stopPropagation()).on('input', e => editor.fileName = e.target.val());
+        view.iconButton("assets/wand_icon.png", ø => editor.applyToSelection(editor.tuneAsPartials)).attr('title', 'Fit selection to the harmonic series');
+        let $eqButton = view.iconButton("assets/frac_icon.webp", ø => editor.applyToSelection(editor.equallyDivide, $divisions.val())).attr('title', 'Equally divide').children().attr({
+          width: 12,
+          height: 15
+        });
+        /* 
+        function createDropdown(textArr, elem) {
+            elem.on('mouseenter', ø => div.show())
+                .on('mouseleave', ø => div.hide())
+            let div = $('<div></div>')
+                .appendTo(elem)
+                .addClass('dropdown')
+                .hide()
+            return textArr.map(text => {
+                return $(`<p>${text}</p>`)
+                    .appendTo(div)
+                    .addClass('dropdown-item')
+            })
+        } */
+
+        /*     view.iconButton("assets/clear_icon.png", editor.clearAllData)
+                .attr('title', 'Clear all data') */
+
+        /*     view.addButton("Show Controls")
+                .on('click', ø => $('.control-screen').fadeIn(500)); */
+
+        /*     view.addButton("Fit to Harmonic Series!")
+                .on('click', ø => editor.applyToSelection(editor.tuneAsPartials)); */
+
+        this.addButton("Clear all data").on('click', editor.clearAllData);
+        /*     let $eqButton = view.addButton('Equally Divide')
+            .on('click', ø => editor.applyToSelection(editor.equallyDivide, $divisions.val())); */
+
+        const $divisions = $(document.createElement('input')).attr({
+          type: 'number',
+          min: 2,
+          max: 20,
+          value: 2
+        }).on('keydown', e => {
+          if (e.key == 'Enter') {
+            $eqButton.trigger('click');
+            e.stopPropagation();
+          }
+        }).appendTo(this.$controls);
+        $(document.createTextNode('bpm:')).appendTo(this.$controls);
+        const $tempo = $(document.createElement('input')).attr({
+          type: 'number',
+          min: 80,
+          max: 200,
+          value: 120
+        }).on('input', ø => {
+          playback.bpm = parseInt($tempo.val());
+        }).appendTo(this.$controls);
+        const $xRange = $(document.createElement('input')).attr({
+          id: 'x-zoom',
+          type: "range",
+          min: 4,
+          max: 32,
+          step: 1
+        }).css({
+          position: 'absolute',
+          right: 20,
+          bottom: 10
+        }).appendTo('body');
+        $('.control-screen').on('click', ø => $('.control-screen').fadeOut(500));
+        $xRange.on('input', ø => editor.zoom(+$xRange.val(), editor.zoomY));
+      }
+
+    };
+    window.view = view;
+
     const editor$1 = {
       get width() {
         return editor$1.widthInTime * editor$1.zoomX;
@@ -1494,7 +1623,7 @@
       ruler.scroll(editor$1.scrollX * val, editor$1.scrollY * val);
       keyboard.scale(val);
       keyboard.scroll(editor$1.scrollX * val, editor$1.scrollY * val);
-      playback.scale(val);
+      playback$1.scale(val);
       editor$1.deltaScroll(1, 1);
     };
 
@@ -1671,25 +1800,28 @@
 
     editor$1.openJSONFile = function (file) {
       if (file) {
-        let reader = new FileReader();
-        reader.readAsText(file);
+        view.showLoader(`loading ${file.name}...`, ø => {
+          let reader = new FileReader();
+          reader.readAsText(file);
 
-        reader.onload = e => {
-          try {
-            let json = JSON.parse(reader.result);
+          reader.onload = e => {
+            try {
+              let json = JSON.parse(reader.result);
 
-            if (json) {
-              editor$1.clearAllData();
-              editor$1.addCompressedData(json);
-              let name = file.name.replace(/\..+$/, "");
-              $('.filename').val(name);
-              editor$1.fileName = name;
-              addMessage(`Loaded ${file.name}.`, 'green');
-            } else throw "";
-          } catch {
-            addMessage("Unable to parse file.", 'red');
-          }
-        };
+              if (json) {
+                editor$1.clearAllData();
+                editor$1.addCompressedData(json);
+                let name = file.name.replace(/\..+$/, "");
+                $('.filename').val(name);
+                editor$1.fileName = name;
+                view.hideLoader();
+                addMessage(`Loaded ${file.name}.`, 'green');
+              } else throw "";
+            } catch {
+              addMessage("Unable to parse file.", 'red');
+            }
+          };
+        });
       }
     };
 
@@ -1812,7 +1944,145 @@
     editor$1.loadEditorFromLocalStorage = function () {
       let jsonString = localStorage.getItem("editor");
       let json = JSON.parse(jsonString);
-      if (json) editor$1.addCompressedData(json);
+
+      if (json) {
+        editor$1.addCompressedData(json);
+      } else {
+        // load demo
+        let demo = {
+          "notes": [{
+            "pitch": 60,
+            "velocity": 64,
+            "start": 96,
+            "duration": 16,
+            "bend": -0.8212
+          }, {
+            "pitch": 63,
+            "velocity": 64,
+            "start": 96,
+            "duration": 16,
+            "bend": -0.6648000000000001
+          }, {
+            "pitch": 68,
+            "velocity": 64,
+            "start": 80,
+            "duration": 32,
+            "bend": -0.6844
+          }, {
+            "pitch": 68,
+            "velocity": 64,
+            "start": 32,
+            "duration": 32,
+            "bend": -0.2738
+          }, {
+            "pitch": 63,
+            "velocity": 64,
+            "start": 48,
+            "duration": 16,
+            "bend": -0.2542
+          }, {
+            "pitch": 60,
+            "velocity": 64,
+            "start": 16,
+            "duration": 16,
+            "bend": 0
+          }, {
+            "pitch": 64,
+            "velocity": 64,
+            "start": 16,
+            "duration": 32,
+            "bend": -0.1369
+          }, {
+            "pitch": 67,
+            "velocity": 64,
+            "start": 16,
+            "duration": 16,
+            "bend": 0.019500000000000017
+          }, {
+            "pitch": 59,
+            "velocity": 64,
+            "start": 32,
+            "duration": 16,
+            "bend": -0.11729999999999999
+          }, {
+            "pitch": 60,
+            "velocity": 64,
+            "start": 48,
+            "duration": 32,
+            "bend": -0.41059999999999997
+          }, {
+            "pitch": 64,
+            "velocity": 64,
+            "start": 64,
+            "duration": 32,
+            "bend": -0.5475
+          }, {
+            "pitch": 67,
+            "velocity": 64,
+            "start": 64,
+            "duration": 16,
+            "bend": -0.3911
+          }, {
+            "pitch": 59,
+            "velocity": 64,
+            "start": 80,
+            "duration": 16,
+            "bend": -0.5279
+          }],
+          "edges": [{
+            "id1": 0,
+            "id2": 1,
+            "interval": "6:5"
+          }, {
+            "id1": 1,
+            "id2": 2,
+            "interval": "4:3"
+          }, {
+            "id1": 3,
+            "id2": 4,
+            "interval": "4:3"
+          }, {
+            "id1": 5,
+            "id2": 6,
+            "interval": "5:4"
+          }, {
+            "id1": 6,
+            "id2": 7,
+            "interval": "6:5"
+          }, {
+            "id1": 8,
+            "id2": 6,
+            "interval": "4:3"
+          }, {
+            "id1": 4,
+            "id2": 9,
+            "interval": "6:5"
+          }, {
+            "id1": 10,
+            "id2": 2,
+            "interval": "5:4"
+          }, {
+            "id1": 10,
+            "id2": 11,
+            "interval": "6:5"
+          }, {
+            "id1": 10,
+            "id2": 12,
+            "interval": "4:3"
+          }],
+          "glisses": [],
+          "viewbox": {
+            "scrollX": 79,
+            "scrollY": 709,
+            "scale": 0.9
+          }
+        };
+        console.log("loaded demo data:", demo);
+        editor$1.addCompressedData(demo);
+        editor$1.deselectAllObjects();
+        editor$1.scroll(70, 700);
+        editor$1.scale(0.9);
+      }
     };
 
     editor$1.clearAllData = function () {
@@ -1899,9 +2169,9 @@
     };
 
     editor$1.togglePlaybackSelection = function () {
-      if (playback.playing) {
+      if (playback$1.playing) {
         audio.pause();
-        playback.pause();
+        playback$1.pause();
       } else {
         let notes = editor$1.selection.filter(e => e instanceof SeqNote);
         if (!notes.length) return;
@@ -1909,15 +2179,15 @@
 
         for (let note of notes) minX = Math.min(minX, note.x);
 
-        playback.play(minX);
+        playback$1.play(minX);
         audio.playNotes(notes);
       }
     };
 
     editor$1.togglePlayback = function () {
-      if (playback.playing) {
+      if (playback$1.playing) {
         audio.pause();
-        playback.pause();
+        playback$1.pause();
       } else {
         if (editor$1.selection.length) {
           let minX = Infinity;
@@ -1928,9 +2198,9 @@
             }
           }
 
-          playback.play(minX);
+          playback$1.play(minX);
         } else {
-          playback.play();
+          playback$1.play();
         }
 
         audio.playNotes(editor$1.notes);
@@ -2493,130 +2763,12 @@
     window.editor = editor$1;
 
     $(ø => {
-      $(document.createElement('div')).css({
-        position: 'absolute',
-        bottom: 20,
-        right: 20
-      }).addClass("warn-container").appendTo('body');
-      const $controls = $('#controls-container');
-      iconButton("assets/download_icon.png", editor$1.saveJSONFile).attr('title', 'Download .spr file');
-      iconButton("assets/midi2_icon.png", editor$1.exportMIDI).attr('title', 'Export .mid file').css({
-        paddingRight: 0,
-        paddingLeft: 0
-      }).children().attr('width', 30);
-      iconButton("assets/open_icon.png", ø => $filePick.trigger('click')).attr('title', 'Open .spr file');
-      /* 
-      function createDropdown(textArr, elem) {
-          elem.on('mouseenter', ø => div.show())
-              .on('mouseleave', ø => div.hide())
-          let div = $('<div></div>')
-              .appendTo(elem)
-              .addClass('dropdown')
-              .hide()
-          return textArr.map(text => {
-              return $(`<p>${text}</p>`)
-                  .appendTo(div)
-                  .addClass('dropdown-item')
-          })
-      } */
-
-      let $filePick = $(document.createElement('input')).attr('type', 'file').css('display', 'none').on('change', e => editor$1.openJSONFile(e.target.files[0])).appendTo($controls);
-      divider();
-      iconButton("assets/copy_icon.png", editor$1.copyJSONToClipboard).attr('title', 'Copy file to clipboard');
-      iconButton("assets/paste_icon.png", editor$1.pasteJSONFromClipboard).attr('title', 'Load file from clipboard');
-      divider();
-      iconButton("assets/help_icon.png", ø => $('.control-screen').fadeIn(500)).attr('title', 'Show controls');
-      const $fileName = $('.filename').on('keydown', e => {
-        e.stopPropagation();
-        if (e.key == 'Enter' || e.key == 'Escape') $fileName.blur();
-      }).on('keypress', e => e.stopPropagation()).on('input', ø => editor$1.fileName = $fileName.val());
-
-      function iconButton(url, callback) {
-        let $button = $(document.createElement('button')).on('click', callback).appendTo('.file-button-container').addClass("icon-button");
-        $(`<img src="${url}"/>`).attr({
-          height: 15,
-          width: 15
-        }).appendTo($button);
-        return $button;
-      }
-
-      function divider() {
-        $('<span></span>').appendTo('.file-button-container').css({
-          'border-left': "2px solid black",
-          'border-radius': 1,
-          'opacity': 0.5,
-          'padding-top': 4
-        });
-      }
-
-      iconButton("assets/wand_icon.png", ø => editor$1.applyToSelection(editor$1.tuneAsPartials)).attr('title', 'Fit selection to the harmonic series');
-      let $eqButton = iconButton("assets/frac_icon.webp", ø => editor$1.applyToSelection(editor$1.equallyDivide, $divisions.val())).attr('title', 'Equally divide').children().attr({
-        width: 12,
-        height: 15
-      });
-      /*     iconButton("assets/clear_icon.png", editor.clearAllData)
-              .attr('title', 'Clear all data') */
-
-      /*     addButton("Show Controls")
-              .on('click', ø => $('.control-screen').fadeIn(500)); */
-
-      /*     addButton("Fit to Harmonic Series!")
-              .on('click', ø => editor.applyToSelection(editor.tuneAsPartials)); */
-
-      addButton("Clear all data").on('click', editor$1.clearAllData);
-      /*     let $eqButton = addButton('Equally Divide')
-              .on('click', ø => editor.applyToSelection(editor.equallyDivide, $divisions.val())); */
-
-      const $divisions = $(document.createElement('input')).attr({
-        type: 'number',
-        min: 2,
-        max: 20,
-        value: 2
-      }).on('keydown', e => {
-        if (e.key == 'Enter') {
-          $eqButton.trigger('click');
-          e.stopPropagation();
-        }
-      }).appendTo($controls);
-      $(document.createTextNode('bpm:')).appendTo($controls);
-      const $tempo = $(document.createElement('input')).attr({
-        type: 'number',
-        min: 80,
-        max: 200,
-        value: 120
-      }).on('input', ø => {
-        playback.bpm = parseInt($tempo.val());
-      }).appendTo($controls);
-      const $xRange = $(document.createElement('input')).attr({
-        id: 'x-zoom',
-        type: "range",
-        min: 4,
-        max: 32,
-        step: 1
-      }).css({
-        position: 'absolute',
-        right: 20,
-        bottom: 10
-      }).appendTo('body');
-      /*     const $yRange = $(document.createElement('input'))
-              .attr({
-                  id:'y-zoom',
-                  type: "range",
-                  min: "4",
-                  max: "16",
-                  orient: 'vertical',
-                  step: 0.1
-              }).css({
-                  position: 'absolute',
-                  right: 10,
-                  bottom: 20
-              }).appendTo('body') */
-
+      view.init();
       editor$1.draw();
       ruler.draw();
       grid.draw();
       keyboard.draw();
-      playback.draw();
+      playback$1.draw();
       editor$1.loadEditorFromLocalStorage();
       let octaveTransposition = 60; // handle computer keyboard input
       // have to use keydown instead of keypress
@@ -2709,152 +2861,14 @@
       window.onbeforeunload = e => {
         editor$1.updateLocalStorage();
         e.preventDefault();
-      };
+      }; // show controls for new users
 
-      $('.control-screen').on('click', e => $('.control-screen').fadeOut(500)); // show controls for new users and load demo
 
       if (!localStorage.getItem("editor")) {
-        $('.control-screen').delay(500).fadeIn(500); // lord help me
+        $('.control-screen').delay(500).fadeIn(500);
+      }
 
-        let demo = {
-          "notes": [{
-            "pitch": 60,
-            "velocity": 64,
-            "start": 96,
-            "duration": 16,
-            "bend": -0.8212
-          }, {
-            "pitch": 63,
-            "velocity": 64,
-            "start": 96,
-            "duration": 16,
-            "bend": -0.6648000000000001
-          }, {
-            "pitch": 68,
-            "velocity": 64,
-            "start": 80,
-            "duration": 32,
-            "bend": -0.6844
-          }, {
-            "pitch": 68,
-            "velocity": 64,
-            "start": 32,
-            "duration": 32,
-            "bend": -0.2738
-          }, {
-            "pitch": 63,
-            "velocity": 64,
-            "start": 48,
-            "duration": 16,
-            "bend": -0.2542
-          }, {
-            "pitch": 60,
-            "velocity": 64,
-            "start": 16,
-            "duration": 16,
-            "bend": 0
-          }, {
-            "pitch": 64,
-            "velocity": 64,
-            "start": 16,
-            "duration": 32,
-            "bend": -0.1369
-          }, {
-            "pitch": 67,
-            "velocity": 64,
-            "start": 16,
-            "duration": 16,
-            "bend": 0.019500000000000017
-          }, {
-            "pitch": 59,
-            "velocity": 64,
-            "start": 32,
-            "duration": 16,
-            "bend": -0.11729999999999999
-          }, {
-            "pitch": 60,
-            "velocity": 64,
-            "start": 48,
-            "duration": 32,
-            "bend": -0.41059999999999997
-          }, {
-            "pitch": 64,
-            "velocity": 64,
-            "start": 64,
-            "duration": 32,
-            "bend": -0.5475
-          }, {
-            "pitch": 67,
-            "velocity": 64,
-            "start": 64,
-            "duration": 16,
-            "bend": -0.3911
-          }, {
-            "pitch": 59,
-            "velocity": 64,
-            "start": 80,
-            "duration": 16,
-            "bend": -0.5279
-          }],
-          "edges": [{
-            "id1": 0,
-            "id2": 1,
-            "interval": "6:5"
-          }, {
-            "id1": 1,
-            "id2": 2,
-            "interval": "4:3"
-          }, {
-            "id1": 3,
-            "id2": 4,
-            "interval": "4:3"
-          }, {
-            "id1": 5,
-            "id2": 6,
-            "interval": "5:4"
-          }, {
-            "id1": 6,
-            "id2": 7,
-            "interval": "6:5"
-          }, {
-            "id1": 8,
-            "id2": 6,
-            "interval": "4:3"
-          }, {
-            "id1": 4,
-            "id2": 9,
-            "interval": "6:5"
-          }, {
-            "id1": 10,
-            "id2": 2,
-            "interval": "5:4"
-          }, {
-            "id1": 10,
-            "id2": 11,
-            "interval": "6:5"
-          }, {
-            "id1": 10,
-            "id2": 12,
-            "interval": "4:3"
-          }],
-          "glisses": [],
-          "viewbox": {
-            "scrollX": 79,
-            "scrollY": 709,
-            "scale": 0.9
-          }
-        };
-        console.log("loaded demo data:", demo);
-        editor$1.addCompressedData(demo);
-        editor$1.deselectAllObjects();
-        editor$1.scroll(70, 700);
-        editor$1.scale(0.9);
-      } //$yRange.on('input', ø => editor.zoom(editor.zoomX, +$yRange.val()));
-
-
-      $xRange.on('input', ø => editor$1.zoom(+$xRange.val(), editor$1.zoomY));
-      $('.loader-container').fadeOut(1000);
-      $('#sequencer').fadeTo(2000, 1);
+      view.hideLoader();
     });
 
 }());

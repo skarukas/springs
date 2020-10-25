@@ -41,9 +41,11 @@ export default class SeqNote {
     set bend(val) {
         let steps = Math.round(Math.abs(val))
         if (val > 0.5) {
+            console.log(val, "means", steps, val - steps)
             this.pitch += steps
             this._bend = val - steps;
         } else if (val < -0.5) {
+            console.log(val, "means", -steps, val + steps)
             this.pitch -= steps
             this._bend = val + steps;
         } else {
@@ -146,7 +148,6 @@ export default class SeqNote {
         for (let g of this.glissOutputs) g.redrawPosition()
     }
     updateGraphics(animateDuration = 300) {
-        console.log("updateGraphics called on",this.pitch)
         let rect = this.rect, 
             shadowRect = this.shadowRect,
             handle = this.handle, 
