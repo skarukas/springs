@@ -11,7 +11,7 @@ export default class SeqEdge {
     constructor(a, b, interval) {
         this.a = a;
         this.b = b;
-        this.interval = interval;
+        this._interval = interval;
     }
     updateGraphics(animateDuration=300) {
         if (this.line) {
@@ -102,12 +102,15 @@ export default class SeqEdge {
             this.maxNote.propagateBend(0, 300, [this.minNote]);
         }
     }
-    updateInterval(newVal) {
+    get interval() {
+        return this._interval;
+    }
+    set interval(val) {
         /* Ensure the intervals go in the same direction */
-        if (this.interval.cents() * newVal.cents() > 0) {
-            this.interval = newVal
+        if (this._interval.cents() * val.cents() > 0) {
+            this._interval = val
         } else {
-            this.interval = newVal.inverse()
+            this._interval = val.inverse()
         }
         this.minNote.propagateBend(0)
         this.updateGraphics()

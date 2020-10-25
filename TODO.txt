@@ -20,16 +20,24 @@
 /- load from file/clipboard
 
 
+
+- Make glisses selectable/deletable
+- Make glisses copyable/savable!!! (Compressable) I think they are already ???
+- Eliminate double gliss connections
+
+- rethink "addMessage" popups
 - Make color more visible
+- Make global option to show edges
+- Make editing window clearer
 - Allow undo/redo
 - Fix updateGraphics bug -- dividing JI tritone in 3 doesn't update the high note posn (?)
 - Add custom auto-connections
-- Some notes are not being deleted correctly (you can hear them in playback)
+/- Some notes are not being deleted correctly (you can hear them in playback)
 - Fix intersection for non-rectangles (currently using SVG.checkIntersection which only checks bounding boxes)
 - Make it so the shadowpitch changes when changing bend/interval
 - Make playback about beats or secs rather than pixels
-- Make glisses selectable/deletable
-- Make glisses copyable/savable!!! (Compressable)
+    - make playback line adjust when zooming 
+
 - Fix zoom : (((
     /- viewbox is the way to go but mouseposns are currently screwed up
     /- box select now screwed up
@@ -51,3 +59,10 @@
 - integrate copy/paste with clipboard?
 - pasting one note doesn't copy its bend
 - save title in json
+- create channels with preference towards a specific pitch range
+- add gliss to midi capabilities
+- make things async or at least create loading screen so the page doesn't freeze
+- add warning if the editor is unable to load
+/- export to midi
+- make open/save menus instead of different buttons
+/- add backgrounnd for "springs" and subtitle

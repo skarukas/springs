@@ -5,7 +5,7 @@
   "main": "main.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "build": "rollup --config"
+    "build": "rollup --config; browserify bundle.js -o springs.js"
   },
   "repository": {
     "type": "git",
@@ -18,11 +18,16 @@
   },
   "homepage": "https://github.com/skarukas/springs#readme",
   "dependencies": {
+    "browserify": "^17.0.0",
+    "jzz": "^1.1.1",
+    "jzz-midi-smf": "^1.4.0",
     "rollup": "^2.32.0"
   },
   "devDependencies": {
     "@babel/core": "^7.12.3",
     "@rollup/plugin-babel": "^5.2.1",
-    "babel": "^6.23.0"
+    "babel": "^6.23.0",
+    "fs": "0.0.1-security",
+    "midi-writer-js": "^1.7.4"
   }
 }

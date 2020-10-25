@@ -1,4 +1,3 @@
-import audio from "./audio-playback.js";
 import editor from "./editor.js";
 import grid from "./grid.js";
 import keyboard from "./keyboard.js";
@@ -6,7 +5,7 @@ import playback from "./playbackData.js";
 import ruler from "./ruler.js";
 import { addButton, addMessage } from "./util.js";
 
-$(ø => {
+$(ø => { 
     $(document.createElement('div'))
         .css({
             position: 'absolute',
@@ -17,11 +16,32 @@ $(ø => {
 
     const $controls = $('#controls-container')
 
-    createImageButton("assets/download_icon.png", editor.saveJSONFile)
-        .attr('title', 'Download file as .json')
-
-    createImageButton("assets/open_icon.png", ø => $filePick.trigger('click'))
-        .attr('title', 'Open .json file')
+    iconButton("assets/download_icon.png", editor.saveJSONFile)
+        .attr('title', 'Download .spr file')
+    iconButton("assets/midi2_icon.png", editor.exportMIDI)
+        .attr('title', 'Export .mid file')
+        .css({
+            paddingRight: 0,
+            paddingLeft: 0,
+        })
+        .children()
+        .attr('width', 30)
+    iconButton("assets/open_icon.png", ø => $filePick.trigger('click'))
+        .attr('title', 'Open .spr file')
+    /* 
+    function createDropdown(textArr, elem) {
+        elem.on('mouseenter', ø => div.show())
+            .on('mouseleave', ø => div.hide())
+        let div = $('<div></div>')
+            .appendTo(elem)
+            .addClass('dropdown')
+            .hide()
+        return textArr.map(text => {
+            return $(`<p>${text}</p>`)
+                .appendTo(div)
+                .addClass('dropdown-item')
+        })
+    } */
 
     let $filePick = $(document.createElement('input'))
         .attr('type', 'file')
@@ -29,10 +49,18 @@ $(ø => {
         .on('change', e => editor.openJSONFile(e.target.files[0]))
         .appendTo($controls)
 
-    createImageButton("assets/copy_icon.png", editor.copyJSONToClipboard)
+    divider()
+
+    iconButton("assets/copy_icon.png", editor.copyJSONToClipboard)
         .attr('title', 'Copy file to clipboard')
-    createImageButton("assets/paste_icon.png", editor.pasteJSONFromClipboard)
+    iconButton("assets/paste_icon.png", editor.pasteJSONFromClipboard)
         .attr('title', 'Load file from clipboard')
+
+    divider()
+
+    iconButton("assets/help_icon.png", ø => $('.control-screen').fadeIn(500))
+        .attr('title', 'Show controls')
+
 
     const $fileName = $('.filename')
         .on('keydown', e => {
@@ -41,7 +69,7 @@ $(ø => {
         }).on('keypress', e => e.stopPropagation())
         .on('input', ø => editor.fileName = $fileName.val())
 
-    function createImageButton(url, callback) {
+    function iconButton(url, callback) {
         let $button = $(document.createElement('button'))
             .on('click', callback)
             .appendTo('.file-button-container')
@@ -55,15 +83,39 @@ $(ø => {
         return $button;
     }
 
-    addButton("Show Controls")
-        .on('click', ø => $('#controls').fadeIn(500));
-    addButton("Fit to Harmonic Series!")
-        .on('click', ø => editor.applyToSelection(editor.tuneAsPartials));
+    function divider() {
+        $('<span></span>')
+            .appendTo('.file-button-container')
+            .css({
+                'border-left': "2px solid black", 
+                'border-radius': 1,
+                'opacity': 0.5, 
+                'padding-top': 4
+            })
+    }
+
+    iconButton("assets/wand_icon.png", ø => editor.applyToSelection(editor.tuneAsPartials))
+        .attr('title', 'Fit selection to the harmonic series')
+    let $eqButton = 
+        iconButton("assets/frac_icon.webp",  ø => editor.applyToSelection(editor.equallyDivide, $divisions.val()))
+            .attr('title', 'Equally divide')
+            .children()
+            .attr({
+                width: 12,
+                height: 15
+            })
+/*     iconButton("assets/clear_icon.png", editor.clearAllData)
+        .attr('title', 'Clear all data') */
+
+/*     addButton("Show Controls")
+        .on('click', ø => $('.control-screen').fadeIn(500)); */
+/*     addButton("Fit to Harmonic Series!")
+        .on('click', ø => editor.applyToSelection(editor.tuneAsPartials)); */
     addButton("Clear all data")
         .on('click', editor.clearAllData)
 
-    let $eqButton = addButton('Equally Divide')
-        .on('click', ø => editor.applyToSelection(editor.equallyDivide, $divisions.val()));
+/*     let $eqButton = addButton('Equally Divide')
+        .on('click', ø => editor.applyToSelection(editor.equallyDivide, $divisions.val())); */
 
     const $divisions = $(document.createElement('input'))
         .attr({
@@ -95,15 +147,15 @@ $(ø => {
             id:'x-zoom',
             type: "range",
             min: 4,
-            max: 16,
-            step: 0.1
+            max: 32,
+            step: 1
         }).css({
             position: 'absolute',
             right: 20,
             bottom: 10
-        }).appendTo($('.seq'))
+        }).appendTo('body')
         
-    const $yRange = $(document.createElement('input'))
+/*     const $yRange = $(document.createElement('input'))
         .attr({
             id:'y-zoom',
             type: "range",
@@ -115,7 +167,7 @@ $(ø => {
             position: 'absolute',
             right: 10,
             bottom: 20
-        }).appendTo($('.seq'))
+        }).appendTo('body') */
 
     editor.draw();
     ruler.draw();
@@ -215,10 +267,10 @@ $(ø => {
         e.preventDefault()
     }
 
-    $('#controls').on('click', e => $('#controls').fadeOut(500))
+    $('.control-screen').on('click', e => $('.control-screen').fadeOut(500))
     // show controls for new users and load demo
     if (!localStorage.getItem("editor")) {
-        $('#controls').delay(500).fadeIn(500)
+        $('.control-screen').delay(500).fadeIn(500)
         // lord help me
         let demo = {"notes":[{"pitch":60,"velocity":64,"start":96,"duration":16,"bend":-0.8212},
         {"pitch":63,"velocity":64,"start":96,"duration":16,"bend":-0.6648000000000001},
@@ -248,7 +300,7 @@ $(ø => {
 
     } 
 
-    $yRange.on('input', ø => editor.zoom(editor.zoomX, +$yRange.val()));
+    //$yRange.on('input', ø => editor.zoom(editor.zoomX, +$yRange.val()));
     $xRange.on('input', ø => editor.zoom(+$xRange.val(), editor.zoomY));
 
     $('.loader-container').fadeOut(1000)

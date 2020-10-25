@@ -80,7 +80,7 @@ export function addButton(text, parent=$('#controls-container')) {
 export function pitchName(pitch, includeOctave=false) {
     const pitchNames = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
     let result = pitchNames[tune.Util.mod(Math.round(pitch),12)]
-    if (includeOctave) result += Math.floor(pitch / 12) - 1
+    if (includeOctave) result += Math.floor(pitch / 12)
     return result
 }
 

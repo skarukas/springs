@@ -55,6 +55,7 @@ handlers["note_group"] = {
                 editor.paste()
                 editor.action = editor.move
             } else {
+                console.log("note clik")
                 editor.selectObject(note);
             }
             let notes = editor.selection.filter(e => e instanceof SeqNote)
@@ -151,9 +152,9 @@ handlers["note_body"] = {
 
 handlers["edge_line"] = {
     clicked(e, edge) {
-        editor.action = editor.move // hacky -- just to stop from being box select
         if (e.metaKey || e.ctrlKey) editor.toggleObjectInSelection(edge); 
         else editor.selectObject(edge);
+        e.stopPropagation()
     },
     hovered(e, edge) {
         edge.text.opacity(1)
@@ -166,3 +167,10 @@ handlers["edge_line"] = {
     }
 }
 
+handlers["gliss_line"] = {
+    clicked(e, gliss) {
+        if (e.metaKey || e.ctrlKey) editor.toggleObjectInSelection(gliss); 
+        else editor.selectObject(gliss);
+        e.stopPropagation()
+    }
+}

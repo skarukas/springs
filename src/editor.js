@@ -4,6 +4,7 @@ import SeqEdge from "./SeqEdge.js";
 import SeqGliss from "./SeqGliss.js";
 import grid from "./grid.js"
 import ruler from "./ruler.js"
+import midi from "./midi.js"
 import handlers from "./handlers.js"
 import { 
     pitchName, 
@@ -150,9 +151,9 @@ editor.draw = function() {
                 editor.action = editor.drag;
             } else {
                 let poly = [[editor.clickStart.x, editor.clickStart.y],
-                [editor.clickStart.x, editor.clickStart.y],
-                [editor.clickStart.x, editor.clickStart.y],
-                [editor.clickStart.x, editor.clickStart.y]];
+                    [editor.clickStart.x, editor.clickStart.y],
+                    [editor.clickStart.x, editor.clickStart.y],
+                    [editor.clickStart.x, editor.clickStart.y]];
                 editor.selectBox.plot(poly).front().show();
                 editor.action = editor.boxSelect;
             }
@@ -177,7 +178,6 @@ editor.draw = function() {
         } else if (editor.action == editor.boxSelect) {
             // selector box
             editor.selectObjectsInBox(editor.selectBox);
-            addMessage(`Selected ${editor.selection.length} notes.`)
             editor.selectBox.size(0, 0).hide();
         }
 
@@ -230,6 +230,10 @@ editor.copySelection = function() {
     editor.clipboard = editor.compressData(notes)
 }
 
+editor.exportMIDI = function() {
+    midi.writeToFile(editor.notes, editor.fileName)
+}
+
 editor.getEditorJSON = function() {
     let compressed = editor.compressData(editor.notes)
     return {
@@ -245,13 +249,10 @@ editor.getEditorJSON = function() {
 editor.saveJSONFile = function() {
     let json = editor.getEditorJSON()
     let jsonString = JSON.stringify(json)
-    console.log(jsonString)
-    let file = new Blob([jsonString], {type: 'application/json'});
-    let url = URL.createObjectURL(file);
-    console.log(url)
+    let file = new Blob([jsonString], {type: 'application/x-spr'});
     let a = document.createElement('a')
-    a.href= URL.createObjectURL(file);
-    a.download = editor.fileName || "untitled";
+    a.href = URL.createObjectURL(file);
+    a.download = (editor.fileName || "untitled") + ".spr";
     a.click();
   
     URL.revokeObjectURL(a.href);
@@ -313,11 +314,11 @@ editor.compressData = function(objs) {
         glisses: []
     }
     let notes = objs.filter(e => e instanceof SeqNote)
-    //let edges = objs.filter(e => e instanceof SeqEdge)
-    //let glisses = objs.filter(e => e instanceof SeqGliss) // not selectable yet
     let edges = [];
     let seen = new Set();
 
+    let adjMat = [];
+    
     /* Add necessary edges (edges between selected notes) */
     for (let note of notes) {
         if (!seen.has(note)) {
@@ -329,16 +330,17 @@ editor.compressData = function(objs) {
             }
             seen.add(note)
         }
+        adjMat.push([])
     }
 
     // Add necessary glisses (glisses between selected notes)
     for (let i = 0; i < notes.length; i++) {
         for (let gliss of notes[i].glissOutputs) {
-            let idx = notes.indexOf(gliss.endNote)
-            if (idx != -1) {
+            let j = notes.indexOf(gliss.endNote)
+            if (j != -1) {
                 compressed.glisses.push({
                     start: i,
-                    end: idx
+                    end: j
                 })
             }
         }
@@ -361,20 +363,23 @@ editor.compressData = function(objs) {
                 break;
             }
         }
-        if (idx == -1) return [true, compressed.notes.push(copy) - 1]
-        else return [false, idx]
+        if (idx == -1) return compressed.notes.push(copy) - 1
+        else return idx
     }
+
 
     /* Add the ones that are connected */
     for (let edge of edges) {
-        let [isAdded1, id1] = addCompressedNote(edge.a)
-        let [isAdded2, id2] = addCompressedNote(edge.b)
-        if (isAdded1 || isAdded2) {
+        let id1 = addCompressedNote(edge.a)
+        let id2 = addCompressedNote(edge.b)
+        if (!adjMat[id1][id2]) {
             compressed.edges.push({
                 id1,
                 id2,
                 interval: edge.interval.toString()
             })
+            adjMat[id1][id2] = true
+            adjMat[id2][id1] = true
         }
     }
 
@@ -534,28 +539,22 @@ editor.boxSelect = function(box, e) {
 }
 
 editor.toggleObjectInSelection = function(obj) {
-/*     if (editor.selectedObject && !editor.selection.includes(editor.selectedObject)) {
-        /* Keep a list instead of one selected object
-        editor.selection.push(editor.selectedObject);
-        editor.selectedObject = undefined;
-    } */
+
     if (editor.selection.includes(obj)) {
         /* Deselect already selected object */
         editor.selection = editor.selection.filter(n => n != obj);
         obj.selected = false;
-        //if (editor.selectedObject == obj) editor.selectedObject = undefined
     } else {
         /* Select unselected object */
         editor.selection.push(obj);
         obj.selected = true;
-        //editor.selectedObject = obj;
     }
 }
 
 editor.selectObjectsInBox = function(selectBox) {
     editor.deselectAllObjects();
 
-    let svgElem = $('svg').get()[0]
+    let svgElem = $('svg').get(0)
     let rect = selectBox.node.getBBox()
     // change to non-transformed viewbox temporarily
     // a little hacky, but it works
@@ -568,16 +567,20 @@ editor.selectObjectsInBox = function(selectBox) {
     let selectedEdges = editor.edges.filter(edge => {
         return svgElem.checkIntersection(edge.line.node, rect)
     })
+    let selectedGlisses = editor.glisses.filter(gliss => {
+        return svgElem.checkIntersection(gliss.line.node, rect)
+    })
     editor.canvas.viewbox(vb)
 
-    editor.selection = selectedNotes.concat(selectedEdges)
+    editor.selection = selectedNotes
+        .concat(selectedEdges)
+        .concat(selectedGlisses)
     for (let obj of editor.selection) obj.selected = true;
 }
 
 editor.deselectAllObjects = function() {
     for (let obj of editor.selection) obj.selected = false;
     editor.selection = []
-    //editor.selectedObject = undefined
 }
 
 editor.selectAll = function() {
@@ -971,7 +974,7 @@ function createEdgeInputBox(edge) {
             e.stopPropagation()
         }).on('submit', ø => {
             let interval = parseIntervalText(input.val())
-            interval && edge.updateInterval(interval)
+            if (interval) edge.interval = interval
         }).addClass("text-input")
     return input;
 }
