@@ -69,3 +69,6 @@
 - octave transposition messed up again... :(
     - it's because of the bend update change
 - pitch bend bug in logic?? should i fix that
+- measure interval between pitches
+
+- glisses don't play back on safari

@@ -11,7 +11,8 @@ import {
     addMessage, 
     disableMouseEvents,
     simpleBezierPath, 
-    parseIntervalText 
+    parseIntervalText,
+    rulerPath
 } from "./util.js"
 import style from "./style.js";
 import playback from "./playbackData.js";
@@ -128,6 +129,7 @@ editor.draw = function() {
                 break;
             case editor.connector:
             case editor.glisser:
+            case editor.measurer:
                 editor.action(editor.seqConnector, e);
                 break;
             case editor.drag:
@@ -171,6 +173,14 @@ editor.draw = function() {
         } else if (editor.action == editor.glisser) {
             if (editor.seqConnector.destination) {
                 editor.gliss(editor.seqConnector.source, editor.seqConnector.destination);
+            } 
+            editor.seqConnector.hide();
+            editor.seqText.hide();
+            editor.seqConnector.source = null;
+            editor.seqConnector.destination = null;
+        } else if (editor.action == editor.measurer) {
+            if (editor.seqConnector.destination) {
+                editor.measure(editor.seqConnector.source, editor.seqConnector.destination);
             } 
             editor.seqConnector.hide();
             editor.seqText.hide();
@@ -556,6 +566,21 @@ editor.glisser = function(seqConnector, e) {
     seqConnector.plot(path).show();
 }
 
+editor.measurer = function(seqConnector, e) {
+    let start = {
+        x: editor.clickStart.x,
+        y: seqConnector.source.y + seqConnector.source.height / 2
+    }
+    let end = editor.canvas.point(e.x, e.y)
+    let path = rulerPath(start, end)
+    seqConnector.plot(path).show();
+
+    if (!seqConnector.destination) {
+        editor.seqText.hide();
+    }
+    editor.setCursorStyle("context-menu");
+}
+
 editor.boxSelect = function(box, e) {
     let end = editor.canvas.point(e.x, e.y)
     let start = editor.clickStart;
@@ -715,6 +740,11 @@ editor.gliss = function(start, end) {
         editor.glisses.push(gliss)
     }
     return gliss;
+}
+
+editor.measure = function(start, end) {
+    let interval = start.getIntervalTo(end);
+    return interval
 }
 
 

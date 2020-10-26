@@ -28,6 +28,11 @@
                   ${end.x} ${end.y}`;
       }
     }
+    function rulerPath(start, end) {
+      return `M ${start.x} ${start.y} L ${end.x} ${end.y}
+            M ${start.x - 5} ${start.y} L ${start.x + 5} ${start.y}
+            M ${end.x - 5} ${end.y} L ${end.x + 5} ${end.y}`;
+    }
     function normAscendingInterval(interval) {
       /* if (interval.cents() < 0) interval = interval.inverse(); */
       return interval.normalized();
@@ -811,7 +816,9 @@
           this._bend = val;
         }
 
-        this.redrawPosition(0);
+        this.updateGraphics(0);
+        this.redrawInputs(0);
+        this.redrawOutputs(0);
       }
 
       get bend() {
@@ -1026,10 +1033,10 @@
           initialStore: [tune.ETInterval(0)],
           predicate: (edge, child) => child == other,
           combine: (edge, child, interval) => {
-            if (edge.maxNote == child) return [interval.add(edge.interval)];else return [interval.add(edge.interval.inverse())];
+            if (edge.maxNote == child) return [edge.interval.add(interval)];else return [edge.interval.inverse().add(interval)];
           },
           successVal: (edge, child, interval) => {
-            if (edge.maxNote == child) return interval.add(edge.interval);else return interval.add(edge.interval.inverse());
+            if (edge.maxNote == child) return edge.interval.add(interval);else return edge.interval.inverse().add(interval);
           },
           failureVal: () => tune.ETInterval(other.soundingPitch - this.soundingPitch)
         });
@@ -1377,6 +1384,13 @@
               } = editor$1.canvas.point(e.x, e.y);
               editor$1.seqText.text(intervalText).center(x, y - 15).front().show();
             }
+          } else if (editor$1.action == editor$1.measurer) {
+            let text = editor$1.seqConnector.source.getIntervalTo(note).toString();
+            let {
+              x,
+              y
+            } = editor$1.canvas.point(e.x, e.y);
+            editor$1.seqText.text(text).center(x, y - 15).front().show();
           }
         }
       },
@@ -1384,6 +1398,15 @@
       clicked(e, note) {
         if (e.metaKey || e.ctrlKey) {
           editor$1.toggleObjectInSelection(note);
+        } else if (editor$1.tool == "ruler") {
+          editor$1.clickStart = editor$1.canvas.point(e.x, e.y);
+          editor$1.action = editor$1.measurer;
+          editor$1.seqConnector.source = note;
+          editor$1.seqConnector.stroke({
+            color: 'black',
+            width: 3
+          }).opacity(0.6).front().show();
+          editor$1.measurer(editor$1.seqConnector, e);
         } else {
           if (e.altKey) {
             editor$1.copySelection();
@@ -1748,6 +1771,7 @@
 
           case editor$1.connector:
           case editor$1.glisser:
+          case editor$1.measurer:
             editor$1.action(editor$1.seqConnector, e);
             break;
 
@@ -1791,6 +1815,15 @@
         } else if (editor$1.action == editor$1.glisser) {
           if (editor$1.seqConnector.destination) {
             editor$1.gliss(editor$1.seqConnector.source, editor$1.seqConnector.destination);
+          }
+
+          editor$1.seqConnector.hide();
+          editor$1.seqText.hide();
+          editor$1.seqConnector.source = null;
+          editor$1.seqConnector.destination = null;
+        } else if (editor$1.action == editor$1.measurer) {
+          if (editor$1.seqConnector.destination) {
+            editor$1.measure(editor$1.seqConnector.source, editor$1.seqConnector.destination);
           }
 
           editor$1.seqConnector.hide();
@@ -2286,6 +2319,22 @@
       seqConnector.plot(path).show();
     };
 
+    editor$1.measurer = function (seqConnector, e) {
+      let start = {
+        x: editor$1.clickStart.x,
+        y: seqConnector.source.y + seqConnector.source.height / 2
+      };
+      let end = editor$1.canvas.point(e.x, e.y);
+      let path = rulerPath(start, end);
+      seqConnector.plot(path).show();
+
+      if (!seqConnector.destination) {
+        editor$1.seqText.hide();
+      }
+
+      editor$1.setCursorStyle("context-menu");
+    };
+
     editor$1.boxSelect = function (box, e) {
       let end = editor$1.canvas.point(e.x, e.y);
       let start = editor$1.clickStart;
@@ -2437,6 +2486,11 @@
       }
 
       return gliss;
+    };
+
+    editor$1.measure = function (start, end) {
+      let interval = start.getIntervalTo(end);
+      return interval;
     };
 
     editor$1.getAllConnected = function (notes) {

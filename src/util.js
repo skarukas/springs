@@ -30,6 +30,12 @@ export function simpleBezierPath(start, end, orientation) {
     }
 }
 
+export function rulerPath(start, end) {
+    return `M ${start.x} ${start.y} L ${end.x} ${end.y}
+            M ${start.x - 5} ${start.y} L ${start.x + 5} ${start.y}
+            M ${end.x - 5} ${end.y} L ${end.x + 5} ${end.y}`
+}
+
 export function normAscendingInterval(interval) {
     /* if (interval.cents() < 0) interval = interval.inverse(); */
     return interval.normalized();

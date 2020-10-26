@@ -44,12 +44,28 @@ handlers["note_group"] = {
                         .front()
                         .show();
                 }
-            }   
+            } else if (editor.action == editor.measurer) {
+                let text = editor.seqConnector.source.getIntervalTo(note).toString();
+                let {x, y} = editor.canvas.point(e.x, e.y)
+                editor.seqText.text(text)
+                    .center(x, y - 15)
+                    .front()
+                    .show();
+            }
         }   
     },
     clicked(e, note) {
         if (e.metaKey || e.ctrlKey) {
-            editor.toggleObjectInSelection(note); 
+            editor.toggleObjectInSelection(note);
+        } else if (editor.tool == "ruler") {
+            editor.clickStart = editor.canvas.point(e.x, e.y);
+            editor.action = editor.measurer;
+            editor.seqConnector.source = note;
+            editor.seqConnector.stroke({color: 'black', width: 3})
+                .opacity(0.6)
+                .front()
+                .show();
+            editor.measurer(editor.seqConnector, e)
         } else {
             if (e.altKey) {
                 editor.copySelection()

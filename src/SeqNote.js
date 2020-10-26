@@ -51,7 +51,9 @@ export default class SeqNote {
         } else {
             this._bend = val;
         }
-        this.redrawPosition(0)
+        this.updateGraphics(0)
+        this.redrawInputs(0)
+        this.redrawOutputs(0)
     }
     get bend() {
         return this._bend;
@@ -276,12 +278,12 @@ export default class SeqNote {
             initialStore: [tune.ETInterval(0)],
             predicate: (edge, child) => child == other,
             combine: (edge, child, interval) => {
-                if (edge.maxNote == child) return [interval.add(edge.interval)]
-                else return [interval.add(edge.interval.inverse())]
+                if (edge.maxNote == child) return [edge.interval.add(interval)]
+                else return [edge.interval.inverse().add(interval)]
             },
             successVal: (edge, child, interval) => {
-                if (edge.maxNote == child) return interval.add(edge.interval)
-                else return interval.add(edge.interval.inverse())
+                if (edge.maxNote == child) return edge.interval.add(interval)
+                else return edge.interval.inverse().add(interval)
             },
             failureVal: () => tune.ETInterval(other.soundingPitch - this.soundingPitch)
         });
