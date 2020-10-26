@@ -1,3 +1,5 @@
+import editor from "./editor.js"
+import playback from "./playbackData.js"
 /* for interaction with the DOM */
 
 const view = {
@@ -19,7 +21,7 @@ const view = {
         return $(document.createElement('button'))
             .text(text)
             .appendTo(parent)
-    },
+    }, 
     iconButton(imgSrc, callback) {
         let $button = $(document.createElement('button'))
             .on('click', callback)
@@ -85,7 +87,7 @@ const view = {
                 e.stopPropagation()
             })
             .on('keypress', e => e.stopPropagation())
-            .on('input', e => editor.fileName = e.target.val())
+            .on('input', e => editor.fileName = e.target.value)
 
         view.iconButton("assets/wand_icon.png", ø => editor.applyToSelection(editor.tuneAsPartials))
             .attr('title', 'Fit selection to the harmonic series')
@@ -170,5 +172,3 @@ const view = {
 }
  
 export default view
-
-window.view = view

@@ -15,10 +15,28 @@ export default class SeqGliss {
     get selected() {
         return this._selected;
     }
+    /**
+     * This function is called when the user
+     * directly deletes this object. The effects may propagate
+     * to connected objects.
+     */
+    delete() {
+        if (!this.removed) {
+            this.remove()
+            this.startNote.glissOutputs = this.startNote.glissOutputs.filter(e => e != this)
+            this.endNote.glissInputs = this.endNote.glissInputs.filter(e => e != this)
+        }
+    }
+    /**
+     * This function is called when the object
+     * is removed by a connected object. It
+     * does not propagate.
+     */
     remove() {
-        this.line.remove()
-        this.startNote.glissOutputs = this.startNote.glissOutputs.filter(e => e != this)
-        this.endNote.glissInputs = this.endNote.glissInputs.filter(e => e != this)
+        if (!this.removed) {
+            this.line.remove()
+            this.removed = true
+        }
     }
     draw(canvas) {
         this.canvas = canvas

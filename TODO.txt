@@ -21,8 +21,8 @@
 
 
 
-- Make glisses selectable/deletable
-- Make glisses copyable/savable!!! (Compressable) I think they are already ???
+/- Make glisses selectable/deletable
+/- Make glisses copyable/savable!!! (Compressable) I think they are already ???
 - Eliminate double gliss connections
 
 - rethink "addMessage" popups
@@ -33,8 +33,8 @@
 - Fix updateGraphics bug -- dividing JI tritone in 3 doesn't update the high note posn (?)
 - Add custom auto-connections
 /- Some notes are not being deleted correctly (you can hear them in playback)
-- Fix intersection for non-rectangles (currently using SVG.checkIntersection which only checks bounding boxes)
-- Make it so the shadowpitch changes when changing bend/interval
+/- Fix intersection for non-rectangles (currently using SVG.checkIntersection which only checks bounding boxes)
+/- Make it so the shadowpitch changes when changing bend/interval
 - Make playback about beats or secs rather than pixels
     - make playback line adjust when zooming 
 
@@ -50,10 +50,10 @@
 /- zoom still big problem :-(
 - create scrollbars?
 - make audioparam smoother
-- saved glisses are corrupt
+- saved glisses are corrupt, some glisses don't copy
 /- make it work on safari
 - sometimes notes get moved over before measure 1 ??
-- makes glisses deletable when deleting notes
+/- makes glisses deletable when deleting notes
 - add comments in editor
 /- save to file
 - integrate copy/paste with clipboard?
@@ -61,9 +61,11 @@
 - save title in json
 - create channels with preference towards a specific pitch range
 - add gliss to midi capabilities
-- make things async or at least create loading screen so the page doesn't freeze
+/- make things async or at least create loading screen so the page doesn't freeze
 - add warning if the editor is unable to load
 /- export to midi
 - make open/save menus instead of different buttons
 /- add backgrounnd for "springs" and subtitle
 - octave transposition messed up again... :(
+    - it's because of the bend update change
+- pitch bend bug in logic?? should i fix that

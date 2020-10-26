@@ -9,6 +9,7 @@ import {
     addMessage 
 } from "./util.js"
 import SeqNote from "./SeqNote.js";
+import userPreferences from "./userPreferences.js"
 
 const handlers = {};
 export default handlers
@@ -160,7 +161,7 @@ handlers["edge_line"] = {
         edge.text.opacity(1)
     },
     exited(e, edge) {
-        edge.text.animate(100).opacity(0)
+        if (!userPreferences.alwaysShowEdges) edge.text.animate(100).opacity(0)
     },
     doubleClick(e, edge) {
         editor.typeEdit(null, edge)

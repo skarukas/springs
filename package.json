@@ -21,7 +21,8 @@
     "browserify": "^17.0.0",
     "jzz": "^1.1.1",
     "jzz-midi-smf": "^1.4.0",
-    "rollup": "^2.32.0"
+    "rollup": "^2.32.0",
+    "svg-intersections": "^0.4.0"
   },
   "devDependencies": {
     "@babel/core": "^7.12.3",

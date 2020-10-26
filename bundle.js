@@ -135,9 +135,9 @@
 
       draw() {
         ruler.canvas = SVG().addTo('#ruler').size(editor$1.width, ruler.height).mousemove(e => {
-          if (!playback$1.playing && e.buttons == 1) playback$1.position = editor$1.canvas.point(e.x, e.y).x;
+          if (!playback.playing && e.buttons == 1) playback.position = editor$1.canvas.point(e.x, e.y).x;
         }).mousedown(e => {
-          if (!playback$1.playing) playback$1.position = editor$1.canvas.point(e.x, e.y).x;
+          if (!playback.playing) playback.position = editor$1.canvas.point(e.x, e.y).x;
           editor$1.deselectAllObjects();
         });
         this.svg = this.canvas;
@@ -178,7 +178,7 @@
 
     };
 
-    const playback$1 = {
+    const playback = {
       draw() {
         this.line = editor$1.canvas.line().stroke({
           width: 2,
@@ -201,29 +201,29 @@
       },
 
       set position(val) {
-        playback$1._position = val;
-        playback$1.line.plot(val, 0, val, editor$1.numKeys * editor$1.zoomY).show();
-        playback$1.carrot.cx(val * this.scaleVal).show();
+        playback._position = val;
+        playback.line.plot(val, 0, val, editor$1.numKeys * editor$1.zoomY).show();
+        playback.carrot.cx(val * this.scaleVal).show();
       },
 
       get position() {
-        return playback$1._position;
+        return playback._position;
       },
 
       get playing() {
-        return playback$1.intervalIndex != -1;
+        return playback.intervalIndex != -1;
       },
 
-      play(startPosition = playback$1.position) {
+      play(startPosition = playback.position) {
         let start = Date.now();
-        playback$1.pause();
-        playback$1.position = startPosition || playback$1.position;
-        let measureLengthMs = 60000 * this.beatsPerMeasure / playback$1.bpm;
+        playback.pause();
+        playback.position = startPosition || playback.position;
+        let measureLengthMs = 60000 * this.beatsPerMeasure / playback.bpm;
         let measureWidth = this.ticksPerBeat * this.beatsPerMeasure * editor$1.zoomX;
         let fps = 29;
-        playback$1.line.show().front();
-        playback$1.carrot.show().front();
-        playback$1.intervalIndex = setInterval(() => {
+        playback.line.show().front();
+        playback.carrot.show().front();
+        playback.intervalIndex = setInterval(() => {
           let now = Date.now();
           let deltaMs = now - start;
           let measureCount = deltaMs / measureLengthMs;
@@ -231,21 +231,21 @@
           let screenPosn = Math.max(posn - 100, 0) * this.scaleVal; //$scroller.get()[0].scroll(screenPosn, $scroller.scrollTop());
           //$ruler.get()[0].scroll(screenPosn, $ruler.scrollTop());
 
-          playback$1.position = posn;
-          if (posn >= editor$1.width) playback$1.stop();
+          playback.position = posn;
+          if (posn >= editor$1.width) playback.stop();
         }, 1000 / fps);
       },
 
       pause() {
-        clearInterval(playback$1.intervalIndex);
-        playback$1.intervalIndex = -1;
+        clearInterval(playback.intervalIndex);
+        playback.intervalIndex = -1;
       },
 
       stop() {
-        playback$1.pause();
-        playback$1.position = 0;
-        playback$1.line.hide();
-        playback$1.carrot.hide();
+        playback.pause();
+        playback.position = 0;
+        playback.line.hide();
+        playback.carrot.hide();
       },
 
       MIDITimeToSeconds(ticks) {
@@ -253,9 +253,6 @@
       }
 
     };
-    window.start = playback$1.start;
-    window.stop = playback$1.stop;
-    window.pause = playback$1.pause;
 
     /* Try to remove playback as a dependency */
 
@@ -285,8 +282,8 @@
 
       /* Play a note `start` seconds in the future, ending `end` seconds into the future. */
       playNote(note, start = 0, end = 2.0) {
-        let time = playback$1.position / editor.zoomX;
-        let offset = playback$1.MIDITimeToSeconds(time);
+        let time = playback.position / editor.zoomX;
+        let offset = playback.MIDITimeToSeconds(time);
         let relativeStart = Math.max(0, start - offset);
         let relativeEnd = end - offset;
         if (relativeEnd < 0) return;
@@ -312,13 +309,13 @@
         this.playingNotes.add([a, oscGain]); //if (note.glissInputs.length) return //don't need to play
 
         for (let gliss of note.glissOutputs) {
-          this.playGliss(gliss, end, playback$1.MIDITimeToSeconds(gliss.endNote.start));
+          this.playGliss(gliss, end, playback.MIDITimeToSeconds(gliss.endNote.start));
         }
       },
 
       playGliss(gliss, start = 0, end = 2.0) {
-        let time = playback$1.position / editor.zoomX;
-        let offset = playback$1.MIDITimeToSeconds(time);
+        let time = playback.position / editor.zoomX;
+        let offset = playback.MIDITimeToSeconds(time);
         let relativeStart = Math.max(0, start - offset);
         let relativeEnd = end - offset;
         if (relativeEnd < 0) return;
@@ -345,7 +342,7 @@
 
       playNotes(notes) {
         for (let note of notes) {
-          this.playNote(note, playback$1.MIDITimeToSeconds(note.start), playback$1.MIDITimeToSeconds(note.end));
+          this.playNote(note, playback.MIDITimeToSeconds(note.start), playback.MIDITimeToSeconds(note.end));
         }
       },
 
@@ -598,6 +595,11 @@
     };
     PianoKey.keyYVals = [1, 1.1, 2, 2.4, 3, 4, 4.1, 5, 5.3, 6, 6.5, 7];
 
+    const userPreferences = {
+      propagateBendAfterDeletion: true,
+      alwaysShowEdges: true
+    };
+
     class SeqEdge {
       constructor(a, b, interval) {
         this.a = a;
@@ -676,7 +678,8 @@
         });
         editor$1.assignMouseHandler(this, this.line, "edge_line");
         let intervalLabel = normAscendingInterval(this.interval).toString();
-        this.text = canvas.text(intervalLabel).font(style.editorText).center(this.midX, this.midY).opacity(0);
+        this.text = canvas.text(intervalLabel).font(style.editorText).center(this.midX, this.midY);
+        if (!userPreferences.alwaysShowEdges) this.text.opacity(0);
         disableMouseEvents(this.text);
       }
 
@@ -697,17 +700,37 @@
       get maxNote() {
         return this.a.pitch < this.b.pitch ? this.b : this.a;
       }
+      /**
+       * This function is called when the user
+       * directly deletes this object. The effects may propagate
+       * to connected objects.
+       */
+
+
+      delete() {
+        if (!this.removed) {
+          this.remove();
+
+          if (userPreferences.propagateBendAfterDeletion) {
+            /* Retune the higher note */
+            this.maxNote.propagateBend(0, 300, [this.minNote]);
+          }
+        }
+      }
+      /**
+       * This function is called when the object
+       * is removed by a connected object. It
+       * does not propagate.
+       */
+
 
       remove() {
-        this.line.remove();
-        this.text.remove();
-
-        if (SeqNote.graph.has(this.a) && SeqNote.graph.has(this.b)) {
-          SeqNote.graph.get(this.a).delete(this.b);
-          SeqNote.graph.get(this.b).delete(this.a);
-          /* Retune the higher note */
-
-          this.maxNote.propagateBend(0, 300, [this.minNote]);
+        if (!this.removed) {
+          this.line.remove();
+          this.text.remove();
+          SeqNote.graph.get(this.a)?.delete(this.b);
+          SeqNote.graph.get(this.b)?.delete(this.a);
+          this.removed = true;
         }
       }
 
@@ -1093,10 +1116,8 @@
 
 
       propagateBend(bend, animateDuration = 300, awayFrom = []) {
+        console.log("started at", this.pitch);
         this.bend = bend;
-        this.updateGraphics(animateDuration);
-        this.redrawInputs(animateDuration);
-        this.redrawOutputs();
         this.BFS({
           noVisit: awayFrom,
           initialStore: [bend],
@@ -1104,28 +1125,49 @@
           combine: (edge, child, bend) => {
             let edgeBend = edge.maxNote == child ? edge.getBend() : -edge.getBend();
             let newBend = edgeBend + bend;
+            console.log("got to", child.pitch);
             child.bend = newBend;
-            child.redrawInputs(animateDuration);
-            child.redrawOutputs();
-            child.updateGraphics(animateDuration);
             return [newBend];
           }
         });
       }
+      /**
+       * This function is called when the user
+       * directly deletes this object. The effects may propagate
+       * to connected objects.
+       */
+
+
+      delete() {
+        if (!this.removed) {
+          for (let [_, edge] of this.neighbors) edge.delete();
+
+          for (let g of this.glissInputs) g.remove();
+
+          for (let g of this.glissOutputs) g.remove();
+
+          let removed = this.glissInputs.concat(this.glissOutputs).concat([...this.neighbors].map(e => e[1]));
+          editor$1.removeReferences(removed);
+          this.remove();
+        }
+      }
+      /**
+       * This function is called when the object
+       * is removed by a connected object. It
+       * does not propagate.
+       */
+
 
       remove() {
-        this.bend = 0;
-        this.group.remove();
-        this.shadowRect.remove();
+        if (!this.removed) {
+          this.group.remove();
+          this.shadowRect.remove();
+          SeqNote.graph.delete(this);
 
-        for (let [_, edge] of this.neighbors) {
-          edge.remove();
-          editor$1.delete(null, edge);
+          for (let map of SeqNote.graph.values()) map.delete(this);
+
+          this.removed = true;
         }
-
-        for (let map of SeqNote.graph.values()) map.delete(this);
-
-        SeqNote.graph.delete(this);
       }
 
     }
@@ -1146,11 +1188,32 @@
       get selected() {
         return this._selected;
       }
+      /**
+       * This function is called when the user
+       * directly deletes this object. The effects may propagate
+       * to connected objects.
+       */
+
+
+      delete() {
+        if (!this.removed) {
+          this.remove();
+          this.startNote.glissOutputs = this.startNote.glissOutputs.filter(e => e != this);
+          this.endNote.glissInputs = this.endNote.glissInputs.filter(e => e != this);
+        }
+      }
+      /**
+       * This function is called when the object
+       * is removed by a connected object. It
+       * does not propagate.
+       */
+
 
       remove() {
-        this.line.remove();
-        this.startNote.glissOutputs = this.startNote.glissOutputs.filter(e => e != this);
-        this.endNote.glissInputs = this.endNote.glissInputs.filter(e => e != this);
+        if (!this.removed) {
+          this.line.remove();
+          this.removed = true;
+        }
       }
 
       draw(canvas) {
@@ -1434,7 +1497,7 @@
       },
 
       exited(e, edge) {
-        edge.text.animate(100).opacity(0);
+        if (!userPreferences.alwaysShowEdges) edge.text.animate(100).opacity(0);
       },
 
       doubleClick(e, edge) {
@@ -1451,6 +1514,7 @@
     };
 
     /* for interaction with the DOM */
+
     const view = {
       $loader: $('.loader-container'),
       $guiContainer: $('#sequencer'),
@@ -1491,27 +1555,27 @@
       },
 
       init() {
-        this.iconButton("assets/download_icon.png", editor.saveJSONFile).attr('title', 'Download .spr file');
-        this.iconButton("assets/midi2_icon.png", editor.exportMIDI).attr('title', 'Export .mid file').css({
+        this.iconButton("assets/download_icon.png", editor$1.saveJSONFile).attr('title', 'Download .spr file');
+        this.iconButton("assets/midi2_icon.png", editor$1.exportMIDI).attr('title', 'Export .mid file').css({
           paddingRight: 0,
           paddingLeft: 0
         }).children().attr('width', 30);
         this.iconButton("assets/open_icon.png", ø => $filePick.trigger('click')).attr('title', 'Open .spr file');
         let $filePick = $(document.createElement('input')).attr('type', 'file').css('display', 'none').on('change', e => {
-          editor.openJSONFile(e.target.files[0]);
+          editor$1.openJSONFile(e.target.files[0]);
           $filePick.val("");
         }).appendTo(this.$controls);
         this.divider();
-        this.iconButton("assets/copy_icon.png", editor.copyJSONToClipboard).attr('title', 'Copy file to clipboard');
-        this.iconButton("assets/paste_icon.png", editor.pasteJSONFromClipboard).attr('title', 'Load file from clipboard');
+        this.iconButton("assets/copy_icon.png", editor$1.copyJSONToClipboard).attr('title', 'Copy file to clipboard');
+        this.iconButton("assets/paste_icon.png", editor$1.pasteJSONFromClipboard).attr('title', 'Load file from clipboard');
         this.divider();
         this.iconButton("assets/help_icon.png", ø => $('.control-screen').fadeIn(500)).attr('title', 'Show controls');
         const $fileName = $('.filename').on('keydown', e => {
           if (e.key == 'Enter' || e.key == 'Escape') $fileName.blur();
           e.stopPropagation();
-        }).on('keypress', e => e.stopPropagation()).on('input', e => editor.fileName = e.target.val());
-        view.iconButton("assets/wand_icon.png", ø => editor.applyToSelection(editor.tuneAsPartials)).attr('title', 'Fit selection to the harmonic series');
-        let $eqButton = view.iconButton("assets/frac_icon.webp", ø => editor.applyToSelection(editor.equallyDivide, $divisions.val())).attr('title', 'Equally divide').children().attr({
+        }).on('keypress', e => e.stopPropagation()).on('input', e => editor$1.fileName = e.target.value);
+        view.iconButton("assets/wand_icon.png", ø => editor$1.applyToSelection(editor$1.tuneAsPartials)).attr('title', 'Fit selection to the harmonic series');
+        let $eqButton = view.iconButton("assets/frac_icon.webp", ø => editor$1.applyToSelection(editor$1.equallyDivide, $divisions.val())).attr('title', 'Equally divide').children().attr({
           width: 12,
           height: 15
         });
@@ -1539,7 +1603,7 @@
         /*     view.addButton("Fit to Harmonic Series!")
                 .on('click', ø => editor.applyToSelection(editor.tuneAsPartials)); */
 
-        this.addButton("Clear all data").on('click', editor.clearAllData);
+        this.addButton("Clear all data").on('click', editor$1.clearAllData);
         /*     let $eqButton = view.addButton('Equally Divide')
             .on('click', ø => editor.applyToSelection(editor.equallyDivide, $divisions.val())); */
 
@@ -1575,11 +1639,15 @@
           bottom: 10
         }).appendTo('body');
         $('.control-screen').on('click', ø => $('.control-screen').fadeOut(500));
-        $xRange.on('input', ø => editor.zoom(+$xRange.val(), editor.zoomY));
+        $xRange.on('input', ø => editor$1.zoom(+$xRange.val(), editor$1.zoomY));
       }
 
     };
-    window.view = view;
+
+    const {
+      shape,
+      intersect
+    } = require('svg-intersections');
 
     const editor$1 = {
       get width() {
@@ -1622,7 +1690,7 @@
       ruler.scroll(editor$1.scrollX * val, editor$1.scrollY * val);
       keyboard.scale(val);
       keyboard.scroll(editor$1.scrollX * val, editor$1.scrollY * val);
-      playback$1.scale(val);
+      playback.scale(val);
       editor$1.deltaScroll(1, 1);
     };
 
@@ -1813,12 +1881,13 @@
                 let name = file.name.replace(/\..+$/, "");
                 $('.filename').val(name);
                 editor$1.fileName = name;
-                view.hideLoader();
                 addMessage(`Loaded ${file.name}.`, 'green');
               } else throw "";
             } catch {
               addMessage("Unable to parse file.", 'red');
             }
+
+            view.hideLoader();
           };
         });
       }
@@ -2168,9 +2237,9 @@
     };
 
     editor$1.togglePlaybackSelection = function () {
-      if (playback$1.playing) {
+      if (playback.playing) {
         audio.pause();
-        playback$1.pause();
+        playback.pause();
       } else {
         let notes = editor$1.selection.filter(e => e instanceof SeqNote);
         if (!notes.length) return;
@@ -2178,15 +2247,15 @@
 
         for (let note of notes) minX = Math.min(minX, note.x);
 
-        playback$1.play(minX);
+        playback.play(minX);
         audio.playNotes(notes);
       }
     };
 
     editor$1.togglePlayback = function () {
-      if (playback$1.playing) {
+      if (playback.playing) {
         audio.pause();
-        playback$1.pause();
+        playback.pause();
       } else {
         if (editor$1.selection.length) {
           let minX = Infinity;
@@ -2197,9 +2266,9 @@
             }
           }
 
-          playback$1.play(minX);
+          playback.play(minX);
         } else {
-          playback$1.play();
+          playback.play();
         }
 
         audio.playNotes(editor$1.notes);
@@ -2238,7 +2307,8 @@
     editor$1.selectObjectsInBox = function (selectBox) {
       editor$1.deselectAllObjects();
       let svgElem = $('svg').get(0);
-      let rect = selectBox.node.getBBox(); // change to non-transformed viewbox temporarily
+      let rect = selectBox.node.getBBox();
+      let rectShape = shape("rect", rect); // change to non-transformed viewbox temporarily
       // a little hacky, but it works
 
       let vb = editor$1.canvas.viewbox();
@@ -2246,14 +2316,29 @@
       let selectedNotes = editor$1.notes.filter(note => {
         return svgElem.checkIntersection(note.rect.node, rect);
       });
-      /* Right now it uses the bounding box (rect) which is not ideal */
-
       let selectedEdges = editor$1.edges.filter(edge => {
-        return svgElem.checkIntersection(edge.line.node, rect);
+        let pathArr = edge.line.array();
+        let paths = pathArr.map(e => e.join(" "));
+        let d = paths.join(" ");
+        let intersections = intersect(rectShape, shape("path", {
+          d
+        }));
+        return !!intersections.points.length || isInside(rect, edge.line.node.getBBox());
       });
       let selectedGlisses = editor$1.glisses.filter(gliss => {
-        return svgElem.checkIntersection(gliss.line.node, rect);
+        let pathArr = gliss.line.array();
+        let paths = pathArr.map(e => e.join(" "));
+        let d = paths.join(" ");
+        let intersections = intersect(rectShape, shape("path", {
+          d
+        }));
+        return !!intersections.points.length || isInside(rect, gliss.line.node.getBBox());
       });
+
+      function isInside(a, b) {
+        return !(b.x < a.x || b.y < a.y || b.x + b.width > a.x + a.width || b.y + b.height > a.y + a.height);
+      }
+
       editor$1.canvas.viewbox(vb);
       editor$1.selection = selectedNotes.concat(selectedEdges).concat(selectedGlisses);
 
@@ -2529,14 +2614,19 @@
     };
 
     editor$1.delete = function (e, ...objs) {
-      let removed = new Set(objs);
+      for (let obj of objs) obj.delete();
 
-      for (let obj of objs) obj.remove();
+      editor$1.removeReferences(objs);
+    };
+
+    editor$1.removeReferences = function (objs) {
+      let removed = new Set(objs);
 
       let notRemoved = e => !removed.has(e);
 
       editor$1.edges = editor$1.edges.filter(notRemoved);
       editor$1.notes = editor$1.notes.filter(notRemoved);
+      editor$1.glisses = editor$1.glisses.filter(notRemoved);
       editor$1.deselectAllObjects();
     };
 
@@ -2756,10 +2846,7 @@
 
         for (let edge of editor$1.edges) edge.hide();
       }
-    }; // for debugging purposes
-
-
-    window.editor = editor$1;
+    };
 
     $(ø => {
       view.init();
@@ -2767,7 +2854,7 @@
       ruler.draw();
       grid.draw();
       keyboard.draw();
-      playback$1.draw();
+      playback.draw();
       editor$1.loadEditorFromLocalStorage();
       let octaveTransposition = 60; // handle computer keyboard input
       // have to use keydown instead of keypress
@@ -2869,5 +2956,8 @@
 
       view.hideLoader();
     });
+    window.prefs = userPreferences;
+    window.view = view;
+    window.editor = editor$1;
 
 }());

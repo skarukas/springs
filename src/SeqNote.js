@@ -360,10 +360,8 @@ export default class SeqNote {
     }
     // offset all children by this bend amount
     propagateBend(bend, animateDuration = 300, awayFrom=[]) {
+        console.log("started at", this.pitch)
         this.bend = bend;
-        this.updateGraphics(animateDuration);
-        this.redrawInputs(animateDuration);
-        this.redrawOutputs();
 
         this.BFS({
             noVisit: awayFrom,
@@ -372,24 +370,43 @@ export default class SeqNote {
             combine: (edge, child, bend) => {
                 let edgeBend = (edge.maxNote == child)? edge.getBend() : -edge.getBend()
                 let newBend = edgeBend + bend
+                console.log("got to", child.pitch)
                 child.bend = newBend;
-                child.redrawInputs(animateDuration);
-                child.redrawOutputs();
-                child.updateGraphics(animateDuration);
                 return [newBend];
             }
         });
     }
-    remove() {
-        this.bend = 0;
-        this.group.remove()
-        this.shadowRect.remove()
-        for (let [_, edge] of this.neighbors) {
-            edge.remove()
-            editor.delete(null, edge)
+    /**
+     * This function is called when the user
+     * directly deletes this object. The effects may propagate
+     * to connected objects.
+     */
+    delete() {
+        if (!this.removed) {
+            for (let [_, edge] of this.neighbors) edge.delete()
+            for (let g of this.glissInputs) g.remove()
+            for (let g of this.glissOutputs) g.remove()
+
+            let removed = this.glissInputs
+                .concat(this.glissOutputs)
+                .concat([...this.neighbors].map(e => e[1]))
+            editor.removeReferences(removed)
+            this.remove()
         }
-        for (let map of SeqNote.graph.values()) map.delete(this)
-        SeqNote.graph.delete(this)
+    }
+    /**
+     * This function is called when the object
+     * is removed by a connected object. It
+     * does not propagate.
+     */
+    remove() {
+        if (!this.removed) {
+            this.group.remove()
+            this.shadowRect.remove()
+            SeqNote.graph.delete(this)
+            for (let map of SeqNote.graph.values()) map.delete(this)
+            this.removed = true
+        }
     }
 }
 

@@ -5,6 +5,7 @@ import playback from "./playbackData.js";
 import ruler from "./ruler.js";
 import view from "./view.js";
 import { addMessage } from "./util.js";
+import userPreferences from "./userPreferences.js"
 
 $(ø => {
     view.init();
@@ -113,3 +114,7 @@ $(ø => {
 
     view.hideLoader()
 })
+
+window.prefs = userPreferences
+window.view = view
+window.editor = editor

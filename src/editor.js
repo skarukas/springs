@@ -9,8 +9,7 @@ import handlers from "./handlers.js"
 import { 
     pitchName, 
     addMessage, 
-    disableMouseEvents, 
-    mousePosn, 
+    disableMouseEvents,
     simpleBezierPath, 
     parseIntervalText 
 } from "./util.js"
@@ -18,6 +17,9 @@ import style from "./style.js";
 import playback from "./playbackData.js";
 import audio from "./audio-playback.js";
 import view from "./view.js"
+
+const { shape, intersect } = require('svg-intersections')
+
 
 const editor = {
     get width() {
@@ -269,12 +271,12 @@ editor.openJSONFile = function(file) {
                         let name = file.name.replace(/\..+$/, "")
                         $('.filename').val(name)
                         editor.fileName = name;
-                        view.hideLoader()
                         addMessage(`Loaded ${file.name}.`, 'green')
                     } else throw "";
                 } catch {
                     addMessage("Unable to parse file.", 'red')
                 }
+                view.hideLoader()
             }
         })
     }
@@ -583,6 +585,7 @@ editor.selectObjectsInBox = function(selectBox) {
 
     let svgElem = $('svg').get(0)
     let rect = selectBox.node.getBBox()
+    let rectShape = shape("rect", rect)
     // change to non-transformed viewbox temporarily
     // a little hacky, but it works
     let vb = editor.canvas.viewbox()
@@ -590,13 +593,37 @@ editor.selectObjectsInBox = function(selectBox) {
     let selectedNotes = editor.notes.filter(note => {
         return svgElem.checkIntersection(note.rect.node, rect)
     });
-    /* Right now it uses the bounding box (rect) which is not ideal */
     let selectedEdges = editor.edges.filter(edge => {
-        return svgElem.checkIntersection(edge.line.node, rect)
+        let pathArr = edge.line.array()
+        let paths = pathArr.map(e => e.join(" "))
+        let d = paths.join(" ")
+        let intersections = intersect(
+            rectShape, 
+            shape("path", {d}),
+        );
+        return !!intersections.points.length 
+            || isInside(rect, edge.line.node.getBBox())
     })
     let selectedGlisses = editor.glisses.filter(gliss => {
-        return svgElem.checkIntersection(gliss.line.node, rect)
+        let pathArr = gliss.line.array()
+        let paths = pathArr.map(e => e.join(" "))
+        let d = paths.join(" ")
+        let intersections = intersect(
+            rectShape, 
+            shape("path", {d}),
+        );
+        return !!intersections.points.length 
+            || isInside(rect, gliss.line.node.getBBox())
     })
+
+    function isInside(a, b) {
+        return !(
+            b.x < a.x ||
+            b.y < a.y ||
+            b.x + b.width > a.x + a.width ||
+            b.y + b.height > a.y + a.height
+        );
+    }
     editor.canvas.viewbox(vb)
 
     editor.selection = selectedNotes
@@ -840,11 +867,16 @@ editor.resizeRight = function(e, ...objs) {
 }
 
 editor.delete = function(e, ...objs) {
+    for (let obj of objs) obj.delete()
+    editor.removeReferences(objs)
+}
+
+editor.removeReferences = function(objs) {
     let removed = new Set(objs)
-    for (let obj of objs) obj.remove()
     let notRemoved = e => !removed.has(e)
     editor.edges = editor.edges.filter(notRemoved);
     editor.notes = editor.notes.filter(notRemoved);
+    editor.glisses = editor.glisses.filter(notRemoved);
     editor.deselectAllObjects()
 }
 
@@ -1063,6 +1095,3 @@ editor.show = function(show) {
         for (let edge of editor.edges) edge.hide();
     }
 }
-
-// for debugging purposes
-window.editor = editor;

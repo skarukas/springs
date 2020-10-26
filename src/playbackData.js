@@ -65,7 +65,3 @@ const playback = {
 }
 
 export default playback
-
-window.start = playback.start;
-window.stop = playback.stop;
-window.pause = playback.pause;

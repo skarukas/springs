@@ -6,6 +6,7 @@ import {
 import style from "./style.js"
 import editor from "./editor.js";
 import SeqNote from "./SeqNote.js";
+import userPreferences from "./userPreferences.js";
 
 export default class SeqEdge {
     constructor(a, b, interval) {
@@ -74,7 +75,7 @@ export default class SeqEdge {
         this.text = canvas.text(intervalLabel)
             .font(style.editorText)
             .center(this.midX, this.midY)
-            .opacity(0)
+        if (!userPreferences.alwaysShowEdges) this.text.opacity(0)
         disableMouseEvents(this.text)                
     }
     hide() {
@@ -91,15 +92,32 @@ export default class SeqEdge {
     get maxNote() {
         return (this.a.pitch < this.b.pitch)? this.b : this.a
     }
+    /**
+     * This function is called when the user
+     * directly deletes this object. The effects may propagate
+     * to connected objects.
+     */
+    delete() {
+        if (!this.removed) {
+            this.remove()
+            if (userPreferences.propagateBendAfterDeletion) {
+                /* Retune the higher note */
+                this.maxNote.propagateBend(0, 300, [this.minNote]);
+            }
+        }
+    }
+    /**
+     * This function is called when the object
+     * is removed by a connected object. It
+     * does not propagate.
+     */
     remove() {
-        this.line.remove();
-        this.text.remove();
-
-        if (SeqNote.graph.has(this.a) && SeqNote.graph.has(this.b)) {
-            SeqNote.graph.get(this.a).delete(this.b)
-            SeqNote.graph.get(this.b).delete(this.a)
-            /* Retune the higher note */
-            this.maxNote.propagateBend(0, 300, [this.minNote]);
+        if (!this.removed) {
+            this.line.remove();
+            this.text.remove();
+            SeqNote.graph.get(this.a)?.delete(this.b)
+            SeqNote.graph.get(this.b)?.delete(this.a)
+            this.removed = true
         }
     }
     get interval() {
