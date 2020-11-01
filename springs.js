@@ -750,9 +750,9 @@
           this._interval = val;
         } else {
           this._interval = val.inverse();
-        }
+        } //this.minNote.propagateBend(0)
 
-        this.minNote.propagateBend(0);
+
         this.updateGraphics(0);
       } // return the amount the top note will be bent
 
@@ -797,6 +797,7 @@
       }
 
       set pitch(val) {
+        console.log("changing", this.pitch, "to", val);
         this._pitch = Math.floor(val.clamp(0, 128));
         this.redrawPosition(0);
       }
@@ -981,10 +982,19 @@
       }
 
       transposeByOctaves(n) {
+        let pitch = this.pitch;
         this.pitch += 12 * n;
 
         for (let [note, edge] of this.neighbors) {
-          edge.interval = edge.interval.inverse().add(tune.FreqRatio(2, 1));
+          let octaves = tune.FreqRatio(2, 1).multiply(n);
+
+          if (note.pitch > pitch) {
+            edge.interval = edge.interval.subtract(octaves);
+          } else {
+            edge.interval = edge.interval.add(octaves);
+          } //console.log("interval:", edge.interval.toString())
+
+
           edge.updateGraphics(0);
         }
 
@@ -1123,7 +1133,7 @@
       } // offset all children by this bend amount
 
 
-      propagateBend(bend, animateDuration = 300, awayFrom = []) {
+      propagateBend(bend = this.bend, animateDuration = 300, awayFrom = []) {
         console.log("started at", this.pitch);
         this.bend = bend;
         this.BFS({
@@ -1349,6 +1359,95 @@
       return Math.floor(16383 * (zeroOne + 1) / 2);
     };
 
+    let stack = []; // basically a decorator that saves the action to the stack
+    // while the process is being completed, the subprocesses
+    // are saved to a substack so that they can be undone all 
+    // at once or individually
+
+    function mutator(func, name = "unknown") {
+      return function (...args) {
+        let action = addAction(func, name, ...args); // child process adds its actions to substack
+
+        let temp = stack;
+        stack = action.stack;
+        let result = action.do();
+        stack = temp;
+        return result;
+      };
+    }
+    let temp; // a function to be called when a sequence of calls to `func`
+    //  is about to take place
+
+    const macroActionStart = function (func, name = "unknown") {
+      let action = {
+        name: "macro_" + name,
+        do: undefined,
+        // fix
+        undo: macroUndo(func, name),
+        stack: []
+      };
+      stack.push(action);
+      temp = stack;
+      stack = action.stack;
+      console.log("start macro");
+    };
+
+    function macroUndo(fn, name) {
+      let notes = editor$1.selection.filter(e => e instanceof SeqNote);
+
+      if (name == "resizeRight") {
+        let pairs = notes.map(e => [e, e.end]);
+        return () => {
+          for (let [note, end] of pairs) note.end = end;
+        };
+      } else if (name == "resizeLeft") {
+        let pairs = notes.map(e => [e, e.start]);
+        return () => {
+          for (let [note, start] of pairs) note.start = start;
+        };
+      } else if (name == "move") {
+        let pairs = notes.map(e => [e, e.start, e.pitch]);
+        return () => {
+          for (let [note, start, pitch] of pairs) {
+            note.startMove = start;
+            note.pitch = pitch;
+          }
+        };
+      } else if (name == "bend") {
+        let pairs = notes.map(e => [e, e.pitch, e.bend]);
+        return () => {
+          for (let [note, pitch, bend] of pairs) {
+            note.pitch = pitch;
+            note.bend = bend;
+          }
+        };
+      }
+    }
+
+    const macroActionEnd = function () {
+      if (temp) {
+        stack = temp;
+        console.log("end macro");
+        temp = undefined;
+      }
+    };
+
+    function addAction(func, name, ...args) {
+      let action = {
+        name,
+        do: () => func(...args),
+        undo: getUndo(func, ...args),
+        stack: []
+      };
+      stack.push(action);
+      return action;
+    }
+
+    function getUndo(f, ...args) {
+    }
+
+    window.stack = stack;
+
     const handlers = {};
     let display = false; // this is problematic
 
@@ -1434,6 +1533,8 @@
 
       clicked(e, note) {
         editor$1.action = editor$1.resizeLeft;
+        editor$1.selectObject(note);
+        macroActionStart(editor$1.resizeLeft, "resizeLeft");
       }
 
     };
@@ -1459,6 +1560,8 @@
           editor$1.glisser(editor$1.seqConnector, e);
         } else {
           editor$1.action = editor$1.resizeRight;
+          editor$1.selectObject(note);
+          macroActionStart(editor$1.resizeRight, "resizeRight");
         }
       }
 
@@ -1498,8 +1601,12 @@
       clicked(e, note) {
         if (e.shiftKey) {
           editor$1.action = editor$1.bend;
+          editor$1.selectObject(note);
+          macroActionStart(editor$1.bend, "bend");
         } else {
           editor$1.action = editor$1.move;
+          editor$1.selectObject(note);
+          macroActionStart(editor$1.move, "move");
         }
 
         note.centDisplay.opacity(1);
@@ -1544,6 +1651,7 @@
       $guiContainer: $('#sequencer'),
       $controls: $('#controls-container'),
       $buttonContainer: $('.file-button-container'),
+      $fileName: $('.filename'),
 
       showLoader(msg, callback) {
         this.$loader.find("p").text(msg || 'loading...');
@@ -1554,6 +1662,14 @@
       hideLoader(callback) {
         this.$loader.fadeOut(1000);
         this.$guiContainer.fadeTo(2000, 1, callback);
+      },
+
+      showSaveMessage() {
+        $('#save-time').text(`Saved to browser storage at ${new Date().toLocaleTimeString()}`).show().delay(1000).fadeOut(2000);
+      },
+
+      changeFileName(name) {
+        this.$fileName.val(name);
       },
 
       addButton(text, parent = this.$controls) {
@@ -1585,7 +1701,10 @@
           paddingLeft: 0
         }).children().attr('width', 30);
         this.iconButton("assets/open_icon.png", ø => $filePick.trigger('click')).attr('title', 'Open .spr file');
-        let $filePick = $(document.createElement('input')).attr('type', 'file').css('display', 'none').on('change', e => {
+        let $filePick = $(document.createElement('input')).attr('type', 'file').css({
+          display: 'none',
+          opacity: 0
+        }).on('change', e => {
           editor$1.openJSONFile(e.target.files[0]);
           $filePick.val("");
         }).appendTo(this.$controls);
@@ -1594,10 +1713,21 @@
         this.iconButton("assets/paste_icon.png", editor$1.pasteJSONFromClipboard).attr('title', 'Load file from clipboard');
         this.divider();
         this.iconButton("assets/help_icon.png", ø => $('.control-screen').fadeIn(500)).attr('title', 'Show controls');
+        let saveName = true;
         const $fileName = $('.filename').on('keydown', e => {
-          if (e.key == 'Enter' || e.key == 'Escape') $fileName.blur();
+          if (e.key == 'Enter') {
+            saveName = true;
+            $fileName.blur();
+          } else if (e.key == 'Escape') {
+            saveName = false;
+            $fileName.blur();
+          }
+
           e.stopPropagation();
-        }).on('keypress', e => e.stopPropagation()).on('input', e => editor$1.fileName = e.target.value);
+        }).on('keypress', e => e.stopPropagation()).on("blur", e => {
+          if (saveName) editor$1.fileName = e.target.value;else e.target.value = editor$1.fileName;
+          saveName = true;
+        });
         view.iconButton("assets/wand_icon.png", ø => editor$1.applyToSelection(editor$1.tuneAsPartials)).attr('title', 'Fit selection to the harmonic series');
         let $eqButton = view.iconButton("assets/frac_icon.webp", ø => editor$1.applyToSelection(editor$1.equallyDivide, $divisions.val())).attr('title', 'Equally divide').children().attr({
           width: 12,
@@ -1680,6 +1810,21 @@
 
       get height() {
         return editor$1.numKeys * editor$1.zoomY;
+      },
+
+      set fileName(val) {
+        val = val.split(".")[0];
+        view.changeFileName(val);
+        editor$1._fileName = val;
+        document.title = val;
+      },
+
+      get fileName() {
+        return editor$1._fileName;
+      },
+
+      get objects() {
+        return editor$1.notes.concat(editor$1.glisses).concat(editor$1.edges);
       }
 
     };
@@ -1700,7 +1845,7 @@
     editor$1.numKeys = 128;
     editor$1.selectedObject = null;
     editor$1.mousePosn = undefined;
-    editor$1.fileName = undefined;
+    editor$1._fileName = undefined;
     editor$1.canvas = SVG().addTo('#piano-roll').size(editor$1.zoomX * editor$1.widthInTime, editor$1.zoomY * editor$1.numKeys).viewbox(0, 0, editor$1.width, editor$1.height);
 
     editor$1.scale = function (val) {
@@ -1803,6 +1948,8 @@
           }
         }
       }).mouseup(e => {
+        macroActionEnd();
+
         if (editor$1.action == editor$1.connector) {
           if (editor$1.seqConnector.destination) {
             editor$1.connect(editor$1.seqConnector.source, editor$1.seqConnector.destination);
@@ -1878,10 +2025,13 @@
     editor$1.getEditorJSON = function () {
       let compressed = editor$1.compressData(editor$1.notes);
       return { ...compressed,
-        viewbox: {
-          scrollX: editor$1.scrollX,
-          scrollY: editor$1.scrollY,
-          scale: editor$1.zoomXY
+        meta: {
+          fileName: editor$1.fileName,
+          viewbox: {
+            scrollX: editor$1.scrollX,
+            scrollY: editor$1.scrollY,
+            scale: editor$1.zoomXY
+          }
         }
       };
     };
@@ -1917,8 +2067,9 @@
                 editor$1.fileName = name;
                 addMessage(`Loaded ${file.name}.`, 'green');
               } else throw "";
-            } catch {
+            } catch (e) {
               addMessage("Unable to parse file.", 'red');
+              addMessage(e, 'red');
             }
 
             view.hideLoader();
@@ -1935,7 +2086,7 @@
       });
     };
 
-    editor$1.pasteJSONFromClipboard = function () {
+    editor$1.pasteJSONFromClipboard = mutator(function () {
       navigator.clipboard.readText().then(txt => {
         try {
           let json = JSON.parse(txt);
@@ -1944,13 +2095,13 @@
             editor$1.clearAllData();
             editor$1.addCompressedData(json);
           } else throw "";
-        } catch {
+        } catch (e) {
           addMessage("Unable to parse clipboard.", 'red');
+          addMessage(e, 'red');
         }
       });
-    };
+    }, "pasteJSON");
     /* Automatically stores edges between notes as well */
-
 
     editor$1.compressData = function (objs) {
       let compressed = {
@@ -2040,10 +2191,16 @@
 
     editor$1.updateLocalStorage = function () {
       let json = editor$1.getEditorJSON();
-      localStorage.setItem("editor", JSON.stringify(json));
+
+      try {
+        localStorage.setItem("editor", JSON.stringify(json));
+        return true;
+      } catch {
+        return false;
+      }
     };
 
-    editor$1.loadEditorFromLocalStorage = function () {
+    editor$1.loadEditorFromLocalStorage = mutator(function () {
       let jsonString = localStorage.getItem("editor");
       let json = JSON.parse(jsonString);
 
@@ -2173,11 +2330,14 @@
             "interval": "4:3"
           }],
           "glisses": [],
-          "viewbox": {
-            "scrollX": 79,
-            "scrollY": 709,
-            "scale": 0.9
-          }
+          meta: {
+            "viewbox": {
+              "scrollX": 79,
+              "scrollY": 709,
+              "scale": 0.9
+            }
+          },
+          "fileName": "springs-demo"
         };
         console.log("loaded demo data:", demo);
         editor$1.addCompressedData(demo);
@@ -2185,13 +2345,11 @@
         editor$1.scroll(70, 700);
         editor$1.scale(0.9);
       }
-    };
-
-    editor$1.clearAllData = function () {
-      editor$1.delete(null, ...editor$1.notes);
-    };
-
-    editor$1.addCompressedData = function (compressed, offsetTime = 0, offsetPitch = 0) {
+    }, "load");
+    editor$1.clearAllData = mutator(function () {
+      editor$1.delete(null, ...editor$1.objects);
+    }, "clearAllData");
+    editor$1.addCompressedData = mutator(function (compressed, offsetTime = 0, offsetPitch = 0) {
       let notes = [];
       let edges = [];
       let glisses = [];
@@ -2226,11 +2384,15 @@
       /* Navigate to saved view */
 
 
-      let vb = compressed.viewbox;
+      let meta = compressed.meta;
 
-      if (vb) {
-        editor$1.scroll(vb.scrollX, vb.scrollY);
-        editor$1.scale(vb.scale);
+      if (meta?.viewbox) {
+        editor$1.scroll(meta.viewbox.scrollX, meta.viewbox.scrollY);
+        editor$1.scale(meta.viewbox.scale);
+      }
+
+      if (meta?.fileName) {
+        editor$1.fileName = meta.fileName;
       }
 
       editor$1.deselectAllObjects();
@@ -2239,15 +2401,13 @@
         edges,
         glisses
       };
-    };
-
-    editor$1.transposeByOctaves = function (n, ...objs) {
+    }, "addCompressedData");
+    editor$1.transposeByOctaves = mutator(function (n, ...objs) {
       let notes = objs.filter(e => e instanceof SeqNote);
 
       for (let note of notes) note.transposeByOctaves(n);
-    };
-
-    editor$1.paste = function () {
+    }, "transpose");
+    editor$1.paste = mutator(function () {
       let p = editor$1.mousePosn;
       let time = editor$1.mousePosnToTime(p);
       let pitch = editor$1.mousePosnToPitch(p); // Mouseposn => start of leftmost note, pitch of heighest note
@@ -2268,7 +2428,7 @@
       for (let note of notes) editor$1.toggleObjectInSelection(note);
 
       for (let edge of edges) editor$1.toggleObjectInSelection(edge);
-    };
+    }, "paste");
 
     editor$1.togglePlaybackSelection = function () {
       if (playback.playing) {
@@ -2402,7 +2562,7 @@
     };
 
     editor$1.selectAll = function () {
-      editor$1.selection = editor$1.notes.concat(editor$1.edges).concat(editor$1.glisses);
+      editor$1.selection = editor$1.objects;
 
       for (let x of editor$1.selection) x.selected = true;
     };
@@ -2421,7 +2581,7 @@
       for (let note of notes) audio.playNote(note);
     };
 
-    editor$1.resetBend = function (_, ...objs) {
+    editor$1.resetBend = mutator(function (_, ...objs) {
       let notes = objs.filter(e => e instanceof SeqNote);
       /* Find minimum note of each tree in the forest */
 
@@ -2440,26 +2600,24 @@
       }
 
       for (let m of minimums) m.propagateBend(0);
-    };
-
-    editor$1.addNote = function (pitch, velocity, start, duration) {
+    }, "resetBend");
+    editor$1.addNote = mutator(function (pitch, velocity, start, duration) {
       let note = new SeqNote(pitch, velocity, start, duration);
       editor$1.notes.push(note);
       note.seq = editor$1;
       note.draw(editor$1.canvas);
       return note;
-    };
-
-    editor$1.disconnect = function (note1, note2) {
+    }, "addNote");
+    editor$1.disconnect = mutator(function (note1, note2) {
       let removedEdge = note1.disconnectFrom(note2);
       if (removedEdge) editor$1.delete(null, removedEdge);
-    };
+    }, "disconnect");
 
     editor$1.setCursorStyle = function (val) {
       pianoRollElement.style.cursor = val;
     };
 
-    editor$1.connect = function (note1, note2, by) {
+    editor$1.connect = mutator(function (note1, note2, by) {
       let edge = note1.connectTo(note2, by, 0);
 
       if (edge) {
@@ -2471,9 +2629,8 @@
       }
 
       return edge;
-    };
-
-    editor$1.gliss = function (start, end) {
+    }, "connect");
+    editor$1.gliss = mutator(function (start, end) {
       let gliss;
       /* Stop from extending to a note before the start point */
 
@@ -2486,7 +2643,7 @@
       }
 
       return gliss;
-    };
+    }, "addGliss");
 
     editor$1.measure = function (start, end) {
       let interval = start.getIntervalTo(end);
@@ -2515,8 +2672,7 @@
 
     let startPosns;
     let lastDeltas;
-
-    editor$1.move = function (e, objs, forest) {
+    editor$1.move = mutator(function (e, objs, forest) {
       if (!forest.length) forest = objs;
       let notes = objs.filter(e => e instanceof SeqNote);
       forest = forest.filter(e => e instanceof SeqNote);
@@ -2558,10 +2714,9 @@
         x: deltaX,
         y: deltaY
       };
-    }; // divide moving from note1 to note2
+    }, "move"); // divide moving from note1 to note2
 
-
-    editor$1.equallyDivide = function (n, ...objs) {
+    editor$1.equallyDivide = mutator(function (n, ...objs) {
       if (n < 1) return;
       /* Equally divide every ascending pair (?) */
 
@@ -2603,9 +2758,8 @@
 
         editor$1.connect(prev, note2, interval);
       }
-    };
-
-    editor$1.tuneAsPartials = function (_, ...objs) {
+    }, "divide");
+    editor$1.tuneAsPartials = mutator(function (_, ...objs) {
       let notes = objs.filter(e => e instanceof SeqNote);
 
       if (notes.length > 1) {
@@ -2626,11 +2780,9 @@
         let msg = `Calculated fundamental: ${fundamental.toFixed(2)} Hz (${pitchName(midiF0, true)})`;
         addMessage(msg, 'green');
       }
-    };
-
+    }, "tuneAsPartials");
     let startStarts;
-
-    editor$1.resizeLeft = function (e, ...objs) {
+    editor$1.resizeLeft = mutator(function (e, ...objs) {
       let notes = objs.filter(e => e instanceof SeqNote);
       e = editor$1.canvas.point(e.x, e.y);
 
@@ -2646,11 +2798,9 @@
         let anustart = (startStarts.get(note) + deltaX).clamp(0, note.end - editor$1.timeGridSize);
         note.start = editor$1.quantizeTime(anustart);
       }
-    };
-
+    }, "resizeLeft");
     let startEnds;
-
-    editor$1.resizeRight = function (e, ...objs) {
+    editor$1.resizeRight = mutator(function (e, ...objs) {
       let notes = objs.filter(e => e instanceof SeqNote);
       e = editor$1.canvas.point(e.x, e.y);
 
@@ -2666,13 +2816,12 @@
         let anuend = (startEnds.get(note) + deltaX).clamp(note.start + editor$1.timeGridSize, editor$1.widthInTime);
         note.end = editor$1.quantizeTime(anuend);
       }
-    };
-
-    editor$1.delete = function (e, ...objs) {
+    }, "resizeRight");
+    editor$1.delete = mutator(function (e, ...objs) {
       for (let obj of objs) obj.delete();
 
       editor$1.removeReferences(objs);
-    };
+    }, "delete");
 
     editor$1.removeReferences = function (objs) {
       let removed = new Set(objs);
@@ -2687,8 +2836,7 @@
 
     let lastBend = {};
     let lastY;
-
-    editor$1.bend = function (e, ...objs) {
+    editor$1.bend = mutator(function (e, ...objs) {
       let notes = objs.filter(e => e instanceof SeqNote);
       lastY = lastY || e.y;
       let deltaY = e.y - lastY;
@@ -2700,7 +2848,7 @@
       }
 
       lastY = e.y;
-    };
+    }, "bend");
 
     editor$1.typeEdit = function (_, ...objs) {
       if (!objs.length) return;
@@ -2821,7 +2969,11 @@
         e.stopPropagation();
       }).on('submit', ø => {
         let interval = parseIntervalText(input.val());
-        if (interval) edge.interval = interval;
+
+        if (interval) {
+          edge.interval = interval;
+          edge.minNote.propagateBend(0);
+        }
       }).addClass("text-input");
       return input;
     }
@@ -2867,11 +3019,7 @@
       editor$1.zoomX = xZoom;
       editor$1.zoomY = yZoom;
 
-      for (let note of editor$1.notes) note.updateGraphics(0);
-
-      for (let edge of editor$1.edges) edge.updateGraphics(0);
-
-      for (let gliss of editor$1.glisses) gliss.updateGraphics(0);
+      for (let obj of editor$1.objects) obj.updateGraphics(0);
 
       editor$1.canvas.size(editor$1.zoomX * editor$1.widthInTime, editor$1.zoomY * editor$1.numKeys);
       /* right now these rely on editor.zoomX/Y which is problematic--they have to go here */
@@ -2893,13 +3041,9 @@
 
     editor$1.show = function (show) {
       if (show) {
-        for (let note of editor$1.notes) note.show();
-
-        for (let edge of editor$1.edges) edge.show();
+        for (let obj of editor$1.objects) obj.show();
       } else {
-        for (let note of editor$1.notes) note.hide();
-
-        for (let edge of editor$1.edges) edge.hide();
+        for (let obj of editor$1.objects) obj.hide();
       }
     };
 
@@ -2937,9 +3081,8 @@
             if (n > 1) editor$1.applyToSelection(editor$1.equallyDivide, n);
           } else if (e.key == 's') {
             // save
-            editor$1.updateLocalStorage();
             e.preventDefault();
-            addMessage(`Saved at ${new Date().toUTCString()}`, 'green');
+            if (editor$1.updateLocalStorage()) view.showSaveMessage();else addMessage('Unable to save to browser storage', 'red');
           } else if (e.key == 'o') {
             $filePick.trigger('click');
             e.preventDefault();

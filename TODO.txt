@@ -27,9 +27,10 @@
 
 - rethink "addMessage" popups
 - Make color more visible
-- Make global option to show edges
+/- Make global option to show edges
 - Make editing window clearer
 - Allow undo/redo
+    - need to figure out macro actions (move/bend/resize)....
 - Fix updateGraphics bug -- dividing JI tritone in 3 doesn't update the high note posn (?)
 - Add custom auto-connections
 /- Some notes are not being deleted correctly (you can hear them in playback)
@@ -42,7 +43,7 @@
     /- viewbox is the way to go but mouseposns are currently screwed up
     /- box select now screwed up
     /- need keyboard and ruler to scale with the zoom amount
-    - fix aspect ratio of editor? make it slightly editable?
+    /- fix aspect ratio of editor? make it slightly editable?
     /- edit menu zoom messed up
     - Fix zoom range options
     /- check all references to grid draw
@@ -58,7 +59,7 @@
 /- save to file
 - integrate copy/paste with clipboard?
 - pasting one note doesn't copy its bend
-- save title in json
+/- save title in json
 - create channels with preference towards a specific pitch range
 - add gliss to midi capabilities
 /- make things async or at least create loading screen so the page doesn't freeze
@@ -68,7 +69,10 @@
 /- add backgrounnd for "springs" and subtitle
 - octave transposition messed up again... :(
     - it's because of the bend update change
+    - works now but still messed up when transposing middle note
 - pitch bend bug in logic?? should i fix that
-- measure interval between pitches
+/- measure interval between pitches
+    - add tool for this
 
 - glisses don't play back on safari
+- be more attentive to i/o operations that may fail

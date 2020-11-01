@@ -42,9 +42,9 @@ $(ø => {
                 if (n > 1) editor.applyToSelection(editor.equallyDivide, n)
             } else if (e.key == 's') {
                 // save
-                editor.updateLocalStorage()
                 e.preventDefault()
-                addMessage(`Saved at ${(new Date()).toUTCString()}`, 'green')
+                if (editor.updateLocalStorage()) view.showSaveMessage()
+                else addMessage('Unable to save to browser storage', 'red')
             } else if (e.key == 'o') {
                 $filePick.trigger('click')
                 e.preventDefault()

@@ -35,6 +35,7 @@ export default class SeqNote {
         return this._pitch;
     }
     set pitch(val) {
+        console.log("changing", this.pitch, "to", val)
         this._pitch = Math.floor(val.clamp(0, 128));
         this.redrawPosition(0);
     }
@@ -196,9 +197,17 @@ export default class SeqNote {
         this.indicator.show();
     }
     transposeByOctaves(n) {
+        let pitch = this.pitch
         this.pitch += 12 * n
         for (let [note, edge] of this.neighbors) {
-            edge.interval = edge.interval.inverse().add(tune.FreqRatio(2,1))
+            let octaves = tune.FreqRatio(2,1).multiply(n)
+            if (note.pitch > pitch) {
+                edge.interval = edge.interval.subtract(octaves)
+            } else {
+                edge.interval = edge.interval.add(octaves)
+            }
+        
+            //console.log("interval:", edge.interval.toString())
             edge.updateGraphics(0)
         }
         this.redrawPosition(0)
@@ -361,7 +370,7 @@ export default class SeqNote {
         });
     }
     // offset all children by this bend amount
-    propagateBend(bend, animateDuration = 300, awayFrom=[]) {
+    propagateBend(bend=this.bend, animateDuration = 300, awayFrom=[]) {
         console.log("started at", this.pitch)
         this.bend = bend;
 

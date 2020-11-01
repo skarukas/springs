@@ -7,6 +7,7 @@ const view = {
     $guiContainer: $('#sequencer'),
     $controls: $('#controls-container'),
     $buttonContainer: $('.file-button-container'),
+    $fileName: $('.filename'),
 
     showLoader(msg, callback) {
         this.$loader.find("p").text(msg || 'loading...')
@@ -16,6 +17,16 @@ const view = {
     hideLoader(callback) {
         this.$loader.fadeOut(1000)
         this.$guiContainer.fadeTo(2000, 1, callback)      
+    },
+    showSaveMessage() {
+        $('#save-time')
+            .text(`Saved to browser storage at ${(new Date()).toLocaleTimeString()}`)
+            .show()
+            .delay(1000)
+            .fadeOut(2000)
+    },
+    changeFileName(name) {
+        this.$fileName.val(name)
     },
     addButton(text, parent = this.$controls) {
         return $(document.createElement('button'))
@@ -61,7 +72,10 @@ const view = {
 
         let $filePick = $(document.createElement('input'))
             .attr('type', 'file')
-            .css('display', 'none')
+            .css({
+                display: 'none',
+                opacity: 0,
+            })
             .on('change', e => {
                 editor.openJSONFile(e.target.files[0])
                 $filePick.val("")
@@ -80,14 +94,24 @@ const view = {
         this.iconButton("assets/help_icon.png", ø => $('.control-screen').fadeIn(500))
             .attr('title', 'Show controls')
 
-
+        let saveName = true;
         const $fileName = $('.filename')
             .on('keydown', e => {
-                if (e.key == 'Enter' || e.key == 'Escape') $fileName.blur();
+                if (e.key == 'Enter') {
+                    saveName = true
+                    $fileName.blur();
+                } else if (e.key == 'Escape') {
+                    saveName = false
+                    $fileName.blur();
+                }
                 e.stopPropagation()
             })
             .on('keypress', e => e.stopPropagation())
-            .on('input', e => editor.fileName = e.target.value)
+            .on("blur", e => {
+                if (saveName) editor.fileName = e.target.value
+                else e.target.value = editor.fileName
+                saveName = true
+            })
 
         view.iconButton("assets/wand_icon.png", ø => editor.applyToSelection(editor.tuneAsPartials))
             .attr('title', 'Fit selection to the harmonic series')

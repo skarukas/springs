@@ -18,6 +18,7 @@
   },
   "homepage": "https://github.com/skarukas/springs#readme",
   "dependencies": {
+    "@babel/plugin-proposal-decorators": "^7.12.1",
     "browserify": "^17.0.0",
     "jzz": "^1.1.1",
     "jzz-midi-smf": "^1.4.0",

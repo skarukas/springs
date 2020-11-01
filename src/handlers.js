@@ -10,6 +10,7 @@ import {
 } from "./util.js"
 import SeqNote from "./SeqNote.js";
 import userPreferences from "./userPreferences.js"
+import { macroActionStart } from "./undo-redo.js"
 
 const handlers = {};
 export default handlers
@@ -91,6 +92,8 @@ handlers["note_left_handle"] = {
     },
     clicked(e, note) {
         editor.action = editor.resizeLeft;
+        editor.selectObject(note)
+        macroActionStart(editor.resizeLeft, "resizeLeft")
     }
 }
 
@@ -115,6 +118,8 @@ handlers["note_right_handle"] = {
             editor.glisser(editor.seqConnector, e)
         } else {
             editor.action = editor.resizeRight;
+            editor.selectObject(note)
+            macroActionStart(editor.resizeRight, "resizeRight")
         }
     }
 }
@@ -155,8 +160,12 @@ handlers["note_body"] = {
     clicked(e, note) {
         if (e.shiftKey) {
             editor.action = editor.bend;
+            editor.selectObject(note)
+            macroActionStart(editor.bend, "bend")
         } else {
             editor.action = editor.move;
+            editor.selectObject(note)
+            macroActionStart(editor.move, "move")
         }
         note.centDisplay.opacity(1);
     },

@@ -130,6 +130,12 @@ body {
 .filename {
     border: none;
     font-size: 14pt;
+} 
+
+#save-time {
+    display: none;
+    font-size: 8pt;
+    font-family: Arial;
 }
 
 .icon-button {

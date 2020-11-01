@@ -18,6 +18,7 @@ import style from "./style.js";
 import playback from "./playbackData.js";
 import audio from "./audio-playback.js";
 import view from "./view.js"
+import { macroActionEnd, mutator } from "./undo-redo.js"
 
 const { shape, intersect } = require('svg-intersections')
 
@@ -28,6 +29,20 @@ const editor = {
     },
     get height() {
         return editor.numKeys * editor.zoomY;
+    },
+    set fileName(val) {
+        val = val.split(".")[0]
+        view.changeFileName(val)
+        editor._fileName = val
+        document.title = val
+    },
+    get fileName() {
+        return editor._fileName
+    },
+    get objects() {
+        return editor.notes
+            .concat(editor.glisses)
+            .concat(editor.edges)
     }
 };
 export default editor;
@@ -50,7 +65,7 @@ editor.widthInTime = 1024;
 editor.numKeys = 128;
 editor.selectedObject = null;
 editor.mousePosn = undefined;
-editor.fileName = undefined;
+editor._fileName = undefined;
 
 editor.canvas = SVG()
     .addTo('#piano-roll')
@@ -138,6 +153,7 @@ editor.draw = function() {
         }
         editor.mousePosn = {x: e.x, y:e.y}
     }).mousedown(e => {
+        
         editor.clickStart = editor.canvas.point(e.x, e.y)
         if (!editor.action) {
             if (e.metaKey) {
@@ -162,6 +178,7 @@ editor.draw = function() {
             }
         }
     }).mouseup(e => {
+        macroActionEnd()
         if (editor.action == editor.connector) {
             if (editor.seqConnector.destination) {
                 editor.connect(editor.seqConnector.source, editor.seqConnector.destination);
@@ -247,10 +264,13 @@ editor.getEditorJSON = function() {
     let compressed = editor.compressData(editor.notes)
     return {
         ...compressed,
-        viewbox: {
-            scrollX: editor.scrollX,
-            scrollY: editor.scrollY,
-            scale: editor.zoomXY,
+        meta: {
+            fileName: editor.fileName,
+            viewbox: {
+                scrollX: editor.scrollX,
+                scrollY: editor.scrollY,
+                scale: editor.zoomXY,
+            },
         }
     }
 }
@@ -283,14 +303,15 @@ editor.openJSONFile = function(file) {
                         editor.fileName = name;
                         addMessage(`Loaded ${file.name}.`, 'green')
                     } else throw "";
-                } catch {
+                } catch (e) {
                     addMessage("Unable to parse file.", 'red')
+                    addMessage(e, 'red')
                 }
                 view.hideLoader()
             }
         })
     }
-}
+} 
 
 editor.copyJSONToClipboard = function() {
     let json = editor.getEditorJSON()
@@ -302,7 +323,8 @@ editor.copyJSONToClipboard = function() {
         })
 }
 
-editor.pasteJSONFromClipboard = function() {
+
+editor.pasteJSONFromClipboard = mutator(function() {
     navigator.clipboard
         .readText()
         .then(txt => {
@@ -312,11 +334,12 @@ editor.pasteJSONFromClipboard = function() {
                     editor.clearAllData()
                     editor.addCompressedData(json)
                 } else throw "";
-            } catch {
+            } catch (e) {
                 addMessage("Unable to parse clipboard.", 'red')
+                addMessage(e, 'red')
             }
         })
-}
+}, "pasteJSON")
 
 /* Automatically stores edges between notes as well */
 editor.compressData = function(objs) {
@@ -402,10 +425,15 @@ editor.compressData = function(objs) {
 
 editor.updateLocalStorage = function() {
     let json = editor.getEditorJSON()
-    localStorage.setItem("editor", JSON.stringify(json))
+    try {
+        localStorage.setItem("editor", JSON.stringify(json))
+        return true
+    } catch {
+        return false
+    }
 }
 
-editor.loadEditorFromLocalStorage = function() {
+editor.loadEditorFromLocalStorage = mutator(function() {
     let jsonString = localStorage.getItem("editor")
     let json = JSON.parse(jsonString)
     if (json) {
@@ -431,20 +459,23 @@ editor.loadEditorFromLocalStorage = function() {
             {"id1":4,"id2":9,"interval":"6:5"},{"id1":10,"id2":2,"interval":"5:4"},
             {"id1":10,"id2":11,"interval":"6:5"},{"id1":10,"id2":12,"interval":"4:3"}],
             "glisses":[],
-            "viewbox":{"scrollX":79,"scrollY":709,"scale":0.9}};
+            meta: {
+                "viewbox":{"scrollX":79,"scrollY":709,"scale":0.9}},
+                "fileName": "springs-demo"
+            };
         console.log("loaded demo data:",demo)
         editor.addCompressedData(demo)
         editor.deselectAllObjects()
         editor.scroll(70, 700)
         editor.scale(0.9) 
     }
-}
+}, "load")
 
-editor.clearAllData = function() {
-    editor.delete(null, ...editor.notes)
-}
+editor.clearAllData = mutator(function() {
+    editor.delete(null, ...editor.objects)
+}, "clearAllData")
 
-editor.addCompressedData = function(compressed, offsetTime=0, offsetPitch=0) {
+editor.addCompressedData = mutator(function(compressed, offsetTime=0, offsetPitch=0) {
 
     let notes = [];
     let edges = [];
@@ -486,22 +517,25 @@ editor.addCompressedData = function(compressed, offsetTime=0, offsetPitch=0) {
     }
 
     /* Navigate to saved view */
-    let vb = compressed.viewbox;
-    if (vb) {
-        editor.scroll(vb.scrollX, vb.scrollY)
-        editor.scale(vb.scale)
+    let meta = compressed.meta;
+    if (meta?.viewbox) {
+        editor.scroll(meta.viewbox.scrollX, meta.viewbox.scrollY)
+        editor.scale(meta.viewbox.scale)
+    }
+    if (meta?.fileName) {
+        editor.fileName = meta.fileName
     }
 
     editor.deselectAllObjects()
     return { notes, edges, glisses }
-}
+}, "addCompressedData")
 
-editor.transposeByOctaves = function(n, ...objs) {
+editor.transposeByOctaves = mutator(function(n, ...objs) {
     let notes = objs.filter(e => e instanceof SeqNote)
     for (let note of notes) note.transposeByOctaves(n)
-}
+}, "transpose")
 
-editor.paste = function() {
+editor.paste = mutator(function() {
 
     let p = editor.mousePosn;
     let time = editor.mousePosnToTime(p)
@@ -522,7 +556,7 @@ editor.paste = function() {
 
     for (let note of notes) editor.toggleObjectInSelection(note)
     for (let edge of edges) editor.toggleObjectInSelection(edge)
-}
+}, "paste")
 
 editor.togglePlaybackSelection = function() {
     if (playback.playing) {
@@ -663,9 +697,7 @@ editor.deselectAllObjects = function() {
 }
 
 editor.selectAll = function() {
-    editor.selection = editor.notes
-        .concat(editor.edges)
-        .concat(editor.glisses);
+    editor.selection = editor.objects
     for (let x of editor.selection) x.selected = true;
 }
 
@@ -682,7 +714,7 @@ editor.play = function(_, ...objs) {
     for (let note of notes) audio.playNote(note)
 } 
 
-editor.resetBend = function(_, ...objs) {
+editor.resetBend = mutator(function(_, ...objs) {
     let notes = objs.filter(e => e instanceof SeqNote)
     /* Find minimum note of each tree in the forest */
     let minimums = new Set(notes);
@@ -698,26 +730,26 @@ editor.resetBend = function(_, ...objs) {
         }
     }
     for (let m of minimums) m.propagateBend(0)
-}
+}, "resetBend")
 
-editor.addNote = function(pitch, velocity, start, duration) {
+editor.addNote = mutator(function(pitch, velocity, start, duration) {
     let note = new SeqNote(pitch, velocity, start, duration)
     editor.notes.push(note);
     note.seq = editor;
     note.draw(editor.canvas);
     return note;
-}
+}, "addNote")
 
-editor.disconnect = function(note1, note2) {
+editor.disconnect = mutator(function(note1, note2) {
     let removedEdge = note1.disconnectFrom(note2);
     if (removedEdge) editor.delete(null, removedEdge)
-}
+}, "disconnect")
 
 editor.setCursorStyle = function(val) {
     pianoRollElement.style.cursor = val;
 }
 
-editor.connect = function(note1, note2, by) {
+editor.connect = mutator(function(note1, note2, by) {
     let edge = note1.connectTo(note2, by, 0);
     if (edge) {
         editor.edges.push(edge)
@@ -727,9 +759,9 @@ editor.connect = function(note1, note2, by) {
         addMessage('Cannot connect notes that are already connected.', 'orange')
     }
     return edge;
-}
+}, "connect")
 
-editor.gliss = function(start, end) {
+editor.gliss = mutator(function(start, end) {
     let gliss;
     /* Stop from extending to a note before the start point */ 
     if (start.xEnd < end.x) {
@@ -740,7 +772,7 @@ editor.gliss = function(start, end) {
         editor.glisses.push(gliss)
     }
     return gliss;
-}
+}, "addGliss")
 
 editor.measure = function(start, end) {
     let interval = start.getIntervalTo(end);
@@ -767,7 +799,7 @@ editor.applyToSelection = function(fn, param) {
 
 let startPosns;
 let lastDeltas;
-editor.move = function(e, objs, forest) {
+editor.move = mutator(function(e, objs, forest) {
     if (!forest.length) forest = objs;
 
     let notes = objs.filter(e => e instanceof SeqNote)
@@ -797,10 +829,10 @@ editor.move = function(e, objs, forest) {
         }
     }
     lastDeltas = {x: deltaX, y: deltaY};
-}
+}, "move")
 
 // divide moving from note1 to note2
-editor.equallyDivide = function(n, ...objs) {
+editor.equallyDivide = mutator(function(n, ...objs) {
     if (n < 1) return;
 
     /* Equally divide every ascending pair (?) */
@@ -841,10 +873,10 @@ editor.equallyDivide = function(n, ...objs) {
         }
         editor.connect(prev, note2, interval);
     }
-}
+}, "divide")
 
 
-editor.tuneAsPartials = function(_, ...objs) {
+editor.tuneAsPartials = mutator(function(_, ...objs) {
     let notes = objs.filter(e => e instanceof SeqNote)
     if (notes.length > 1) {
         notes.sort((a, b) => a.pitch - b.pitch)
@@ -859,11 +891,11 @@ editor.tuneAsPartials = function(_, ...objs) {
         let msg = `Calculated fundamental: ${fundamental.toFixed(2)} Hz (${pitchName(midiF0, true)})`
         addMessage(msg, 'green')
     }
-}
+}, "tuneAsPartials")
 
 
 let startStarts;
-editor.resizeLeft = function(e, ...objs) {
+editor.resizeLeft = mutator(function(e, ...objs) {
     let notes = objs.filter(e => e instanceof SeqNote)
     e = editor.canvas.point(e.x, e.y)
 
@@ -877,10 +909,10 @@ editor.resizeLeft = function(e, ...objs) {
         let anustart = (startStarts.get(note) + deltaX).clamp(0, note.end-editor.timeGridSize)
         note.start = editor.quantizeTime(anustart)
     }
-}
+}, "resizeLeft")
 
 let startEnds;
-editor.resizeRight = function(e, ...objs) {
+editor.resizeRight = mutator(function(e, ...objs) {
     let notes = objs.filter(e => e instanceof SeqNote)
     e = editor.canvas.point(e.x, e.y)
 
@@ -894,12 +926,12 @@ editor.resizeRight = function(e, ...objs) {
         let anuend = (startEnds.get(note) + deltaX).clamp(note.start+editor.timeGridSize, editor.widthInTime)
         note.end = editor.quantizeTime(anuend)
     }
-}
+}, "resizeRight")
 
-editor.delete = function(e, ...objs) {
+editor.delete = mutator(function(e, ...objs) {
     for (let obj of objs) obj.delete()
     editor.removeReferences(objs)
-}
+}, "delete")
 
 editor.removeReferences = function(objs) {
     let removed = new Set(objs)
@@ -912,7 +944,7 @@ editor.removeReferences = function(objs) {
 
 let lastBend = {};
 let lastY;
-editor.bend = function(e, ...objs) {
+editor.bend = mutator(function(e, ...objs) {
     let notes = objs.filter(e => e instanceof SeqNote)
     lastY = lastY || e.y;
     let deltaY = e.y - lastY;
@@ -922,7 +954,7 @@ editor.bend = function(e, ...objs) {
         lastBend[note] = newBend;
     }
     lastY = e.y;
-}
+}, "bend")
 
 
 editor.typeEdit = function(_, ...objs) {
@@ -1048,7 +1080,10 @@ function createEdgeInputBox(edge) {
             e.stopPropagation()
         }).on('submit', ø => {
             let interval = parseIntervalText(input.val())
-            if (interval) edge.interval = interval
+            if (interval) {
+                edge.interval = interval
+                edge.minNote.propagateBend(0)
+            }
         }).addClass("text-input")
     return input;
 }
@@ -1092,9 +1127,7 @@ editor.connector = function(seqConnector, e) {
 editor.zoom = function(xZoom, yZoom) {
     editor.zoomX = xZoom;
     editor.zoomY = yZoom;
-    for (let note of editor.notes) note.updateGraphics(0);
-    for (let edge of editor.edges) edge.updateGraphics(0);
-    for (let gliss of editor.glisses) gliss.updateGraphics(0);
+    for (let obj of editor.objects) obj.updateGraphics(0);
     editor.canvas.size(editor.zoomX * editor.widthInTime, editor.zoomY * editor.numKeys);
 
     /* right now these rely on editor.zoomX/Y which is problematic--they have to go here */
@@ -1118,10 +1151,8 @@ editor.assignMouseHandler = function(parent, svgNode, type) {
 
 editor.show = function(show) {
     if (show) {
-        for (let note of editor.notes) note.show();
-        for (let edge of editor.edges) edge.show();
+        for (let obj of editor.objects) obj.show();
     } else {
-        for (let note of editor.notes) note.hide();
-        for (let edge of editor.edges) edge.hide();
+        for (let obj of editor.objects) obj.hide();
     }
 }
