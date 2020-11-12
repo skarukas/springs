@@ -19,6 +19,7 @@ import playback from "./playbackData.js";
 import audio from "./audio-playback.js";
 import view from "./view.js"
 import { macroActionEnd, mutator } from "./undo-redo.js"
+import model from "./hmm.js"
 
 const { shape, intersect } = require('svg-intersections')
 
@@ -135,6 +136,7 @@ editor.draw = function() {
                 editor.move(e, editor.selection, editor.selectionForest)
                 break
             case editor.bend:
+            case editor.glissEasing:
             case editor.resizeLeft:
             case editor.resizeRight:
                 editor.applyToSelection(editor.action, e)
@@ -287,13 +289,34 @@ editor.saveJSONFile = function() {
     URL.revokeObjectURL(a.href);
 }
 
+editor.openFile = function(file) {
+    if (file.name.endsWith(".mid")) editor.openMIDIFile(file)
+    else if (file.name.endsWith(".spr")) editor.openJSONFile(file)
+    else addMessage("Filetype not recognized.", 'red')
+}
+
+editor.openMIDIFile = function(file) {
+    midi.readFromFile(file).then(notes => {
+        let compressed = { notes, edges: [], glisses: [] }
+        editor.clearAllData()
+        editor.addCompressedData(compressed)
+        let name = file.name.replace(/\..+$/, "")
+        $('.filename').val(name)
+        editor.fileName = name;
+        addMessage(`Loaded ${file.name}.`, 'green')
+    }).catch(e => {
+        addMessage("Unable to parse file.", 'red')
+        addMessage(e, 'red')
+    })
+}
+
 editor.openJSONFile = function(file) {
     if (file) {
         view.showLoader(`loading ${file.name}...`, ø => {
             let reader = new FileReader();
             reader.readAsText(file)
             reader.onload = e => {
-                try {
+                try { 
                     let json = JSON.parse(reader.result)
                     if (json) {
                         editor.clearAllData()
@@ -306,7 +329,7 @@ editor.openJSONFile = function(file) {
                 } catch (e) {
                     addMessage("Unable to parse file.", 'red')
                     addMessage(e, 'red')
-                }
+                } 
                 view.hideLoader()
             }
         })
@@ -368,19 +391,7 @@ editor.compressData = function(objs) {
         adjMat.push([])
     }
 
-    // Add necessary glisses (glisses between selected notes)
-    for (let i = 0; i < notes.length; i++) {
-        for (let gliss of notes[i].glissOutputs) {
-            let j = notes.indexOf(gliss.endNote)
-            if (j != -1) {
-                compressed.glisses.push({
-                    start: i,
-                    end: j
-                })
-            }
-        }
-    }
-
+    let seenNotes = []
     // returns the index of the inserted note
     // and whether or not the note was a new addition
     function addCompressedNote(note) {
@@ -398,8 +409,11 @@ editor.compressData = function(objs) {
                 break;
             }
         }
-        if (idx == -1) return compressed.notes.push(copy) - 1
-        else return idx
+        if (idx == -1) {
+            idx = compressed.notes.push(copy) - 1
+            seenNotes.push(note)
+        }
+        return idx
     }
 
 
@@ -420,6 +434,21 @@ editor.compressData = function(objs) {
 
     /* Add the ones that are not connected */
     notes.map(addCompressedNote)
+
+    // Add necessary glisses (glisses between selected notes)
+    for (let i = 0; i < seenNotes.length; i++) {
+        for (let gliss of seenNotes[i].glissOutputs) {
+            let j = seenNotes.indexOf(gliss.endNote)
+            if (j != -1) {
+                compressed.glisses.push({
+                    easing: gliss.easing,
+                    start: i,
+                    end: j
+                })
+            }
+        }
+    }
+
     return compressed
 }
 
@@ -513,6 +542,8 @@ editor.addCompressedData = mutator(function(compressed, offsetTime=0, offsetPitc
         let gliss = editor.gliss(
             notes[glissObj.start], 
             notes[glissObj.end])
+        gliss.easing = glissObj.easing || gliss.easing
+        gliss.updateGraphics(0)
         glisses.push(gliss)
     }
 
@@ -764,6 +795,7 @@ editor.connect = mutator(function(note1, note2, by) {
 editor.gliss = mutator(function(start, end) {
     let gliss;
     /* Stop from extending to a note before the start point */ 
+    for (let { endNote } of start.glissOutputs) if (endNote == end) return end;
     if (start.xEnd < end.x) {
         gliss = new SeqGliss(start, end);
         start.glissOutputs.push(gliss);
@@ -781,14 +813,29 @@ editor.measure = function(start, end) {
 
 
 editor.getAllConnected = function(notes) {
-    let forest = new Set()
+    /* let forest = new Set()
     for (let note of notes) {
         if (!forest.has(note)) {
             let tree = note.getAllConnected()
             for (let e of tree) forest.add(e)
         }
     }
-    return [...forest]
+    return [...forest] */
+    
+    return editor.getComponents(notes).flat()
+}
+
+editor.getComponents = function(notes) {
+    let seen = new Set()
+    let forest = []
+    for (let note of notes) {
+        if (!seen.has(note)) {
+            let tree = note.getAllConnected()
+            for (let e of tree) seen.add(e)
+            forest.push(tree)
+        }
+    }
+    return forest
 }
 
 editor.applyToSelection = function(fn, param) {
@@ -799,7 +846,7 @@ editor.applyToSelection = function(fn, param) {
 
 let startPosns;
 let lastDeltas;
-editor.move = mutator(function(e, objs, forest) {
+editor.move = function(e, objs, forest) {
     if (!forest.length) forest = objs;
 
     let notes = objs.filter(e => e instanceof SeqNote)
@@ -829,7 +876,7 @@ editor.move = mutator(function(e, objs, forest) {
         }
     }
     lastDeltas = {x: deltaX, y: deltaY};
-}, "move")
+}
 
 // divide moving from note1 to note2
 editor.equallyDivide = mutator(function(n, ...objs) {
@@ -880,6 +927,19 @@ editor.tuneAsPartials = mutator(function(_, ...objs) {
     let notes = objs.filter(e => e instanceof SeqNote)
     if (notes.length > 1) {
         notes.sort((a, b) => a.pitch - b.pitch)
+
+
+        //// Only for HMM demo::
+        let intervalClasses = Array(notes.length-1)
+        for (let i = 0; i < notes.length-1; i++) {
+            intervalClasses[i] = Math.round(notes[i+1].soundingPitch - notes[i].soundingPitch)
+        }
+        console.log(intervalClasses)
+        console.log(model.predictSequence(intervalClasses))
+        //// end
+
+
+
         let freqs = notes.map(a => a.asNote.asFrequency())
         let {partials, fundamental} = tune.AdaptiveTuning.bestFitPartials(freqs)
         for (let i = 0; i < partials.length - 1; i++) {
@@ -895,7 +955,7 @@ editor.tuneAsPartials = mutator(function(_, ...objs) {
 
 
 let startStarts;
-editor.resizeLeft = mutator(function(e, ...objs) {
+editor.resizeLeft = function(e, ...objs) {
     let notes = objs.filter(e => e instanceof SeqNote)
     e = editor.canvas.point(e.x, e.y)
 
@@ -909,10 +969,10 @@ editor.resizeLeft = mutator(function(e, ...objs) {
         let anustart = (startStarts.get(note) + deltaX).clamp(0, note.end-editor.timeGridSize)
         note.start = editor.quantizeTime(anustart)
     }
-}, "resizeLeft")
+}
 
 let startEnds;
-editor.resizeRight = mutator(function(e, ...objs) {
+editor.resizeRight = function(e, ...objs) {
     let notes = objs.filter(e => e instanceof SeqNote)
     e = editor.canvas.point(e.x, e.y)
 
@@ -926,7 +986,7 @@ editor.resizeRight = mutator(function(e, ...objs) {
         let anuend = (startEnds.get(note) + deltaX).clamp(note.start+editor.timeGridSize, editor.widthInTime)
         note.end = editor.quantizeTime(anuend)
     }
-}, "resizeRight")
+}
 
 editor.delete = mutator(function(e, ...objs) {
     for (let obj of objs) obj.delete()
@@ -946,6 +1006,7 @@ let lastBend = {};
 let lastY;
 editor.bend = mutator(function(e, ...objs) {
     let notes = objs.filter(e => e instanceof SeqNote)
+    notes = editor.getComponents(notes).map(a => a[0])
     lastY = lastY || e.y;
     let deltaY = e.y - lastY;
     for (let note of notes) {
@@ -955,6 +1016,22 @@ editor.bend = mutator(function(e, ...objs) {
     }
     lastY = e.y;
 }, "bend")
+
+editor.glissEasing = mutator(function(e, ...objs) {
+    let glisses = objs.filter(e => e instanceof SeqGliss)
+    lastY = lastY || e.y;
+    let deltaY = e.y - lastY;
+    for (let gliss of glisses) {
+        let newBend = Math.round(gliss.easing * 100 - deltaY) / 100;
+        newBend = newBend.clamp(0.01, 1)
+        if (newBend != lastBend[gliss]) {
+            gliss.easing = newBend
+            gliss.updateGraphics(0)
+        }
+        lastBend[gliss] = newBend;
+    }
+    lastY = e.y;
+}, "glissEasing")
 
 
 editor.typeEdit = function(_, ...objs) {
@@ -1083,6 +1160,8 @@ function createEdgeInputBox(edge) {
             if (interval) {
                 edge.interval = interval
                 edge.minNote.propagateBend(0)
+                let pitchClass = Math.round(edge.maxNote.soundingPitch - edge.minNote.soundingPitch)
+                model.recordState(pitchClass, interval)
             }
         }).addClass("text-input")
     return input;

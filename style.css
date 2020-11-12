@@ -1,7 +1,7 @@
 body {
     padding: 0px;
     margin: 0px;
-    font-family: Menlo;
+    font-family: 'Trebuchet MS', 'Lucida Sans Unicode', 'Lucida Grande', 'Lucida Sans', Arial, sans-serif;
 }
 
 .left-container {
@@ -59,7 +59,8 @@ body {
     margin: 0px;
     text-align: end;
     color: red;
-    font-family: 'Menlo';
+    font-size: 10pt;
+    /* font-family: 'Menlo'; */
 }
 
 .warn-container {
@@ -100,7 +101,7 @@ body {
 
 #controls {
     color: green;
-    font-family: Menlo;
+    /* font-family: Menlo; */
     font-size: 1.7vh;
     position: fixed;
     padding: 5%;
@@ -120,7 +121,7 @@ body {
     left: 25%;
     position: fixed;
     bottom: 2px;
-    font-family: Menlo; 
+    /* font-family: Menlo;  */
     text-align: center; 
     font-size: 10px;
     border-radius: 5px;
@@ -130,6 +131,7 @@ body {
 .filename {
     border: none;
     font-size: 14pt;
+    width: 50vw;
 } 
 
 #save-time {
@@ -203,6 +205,17 @@ body {
     80% { transform: scale(0); }
 }
 
+.ui-tooltip {
+    font-size: 10px;
+    padding: 2px;
+    pointer-events: none;
+    user-select: none;
+}
+
+.ui-helper-hidden-accessible {
+    pointer-events: none;
+    user-select: none;
+}
 /* .dropdown-item {
     background-color: white;
     position: absolute;

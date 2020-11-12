@@ -6,6 +6,7 @@ import ruler from "./ruler.js";
 import view from "./view.js";
 import { addMessage } from "./util.js";
 import userPreferences from "./userPreferences.js"
+import { undo } from "./undo-redo.js";
 
 $(ø => {
     view.init();
@@ -29,12 +30,18 @@ $(ø => {
             } else if (e.key == 'c') {
                 e.preventDefault();
                 editor.copySelection()
-            } else if (e.key == 'r') {
-                e.preventDefault();
-                editor.applyToSelection(editor.resetBend);
             } else if (e.key == 'v') {
                 e.preventDefault();
                 editor.paste(e)
+            } else if (e.key == "z" && !e.shiftKey) {
+                undo()
+                e.preventDefault();
+            } else if ((e.key == "z" && e.shiftKey) || e.key == "y") {
+                redo()
+                e.preventDefault();         
+            } else if (e.key == 'r') {
+                e.preventDefault();
+                editor.applyToSelection(editor.resetBend);
             } else if (+e.key) {
                 /* check for digits */
                 e.preventDefault()
@@ -111,6 +118,12 @@ $(ø => {
     if (!localStorage.getItem("editor")) {
         $('.control-screen').delay(500).fadeIn(500)
     } 
+
+    $(document).tooltip({
+        items: ".has-tooltip",
+        show: { delay: 1000, effect: "fadeIn", duration: 300 },
+        close: function () { $(".ui-helper-hidden-accessible > *:not(:last)").remove(); }
+    })
 
     view.hideLoader()
 })

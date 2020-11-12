@@ -195,8 +195,18 @@ handlers["edge_line"] = {
 
 handlers["gliss_line"] = {
     clicked(e, gliss) {
-        if (e.metaKey || e.ctrlKey) editor.toggleObjectInSelection(gliss); 
-        else editor.selectObject(gliss);
+        if (e.metaKey || e.ctrlKey) {
+            editor.toggleObjectInSelection(gliss); 
+        } else if (e.shiftKey) {
+            editor.selectObject(gliss)
+            editor.action = editor.glissEasing
+            macroActionStart(editor.glissEasing, "glissEasing")
+        } else {
+            editor.selectObject(gliss);
+        }
         e.stopPropagation()
+    },
+    hovered(e, gliss) {
+        if (e.shiftKey) editor.setCursorStyle("ns-resize");
     }
 }

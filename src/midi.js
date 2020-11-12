@@ -1,4 +1,5 @@
-import { pitchName } from "./util.js"
+import { pitchName, addMessage } from "./util.js"
+import userPreferences from "./userPreferences.js"
 
 const JZZ = require('jzz');
 require('jzz-midi-smf')(JZZ);
@@ -46,6 +47,62 @@ const midi = {
         }
     
         return tracks;
+    },
+   readFromFile(file) {
+        return new Promise((resolve, reject) => {
+            if (!file) return reject()
+
+            view.showLoader(`loading ${file.name}...`, ø => {
+                let reader = new FileReader();
+                reader.readAsBinaryString(file)
+                reader.onload = ø => {
+                    let smf = MIDI.SMF(reader.result)
+                    let notesOn = []
+                    let notes = [] 
+                    let bends = []
+                    for (let mtrk of smf) {
+                        for (let mid of mtrk) {
+                            if (mid.isNoteOn()) {
+                                let pitch = mid.getNote()
+                                notesOn[pitch] = {
+                                    start: mid.tt / 32,
+                                    velocity: mid.getVelocity(),
+                                    pitch
+                                }
+                            } else if (mid.isNoteOff()) {
+                                let pitch = mid.getNote()
+                                let note = notesOn[pitch]
+                                delete notesOn[pitch]
+                                if (note) {
+                                    note.duration = mid.tt / 32 - note.start
+                                    notes.push(note)
+                                }
+                            } else if (mid[0] >= 224 && mid[0] < 240) {
+                                // pitch bend
+                                // right now only works for one channel
+                                let bend = (mid[2] << 7) | mid[1]
+                                bend = (bend / 16384) * 2 - 1
+                                bend *= userPreferences.pitchBendWidth
+                                bends.push({
+                                    time: mid.tt / 32,
+                                    bend
+                                })
+                            }
+                        }
+                    }
+                    bends = bends.sort((a, b) => a.time - b.time)
+                    notes = notes.sort((a, b) => a.start - b.start)
+                    let i = 0;
+                    let currBend = 0;
+                    for (let note of notes) {
+                        if (note.start >= bends[i].time) currBend = bends[i++].bend
+                        note.bend = currBend
+                    }
+                    view.hideLoader()
+                    resolve(notes);
+                }
+            })
+        })
     }
 }
 
@@ -56,16 +113,15 @@ function addNoteToTrack(note, track) {
     let endTick = note.end * 32
     let pitch = pitchName(note.pitch, true)
     let velocity = note.velocity
-    let bend = scale14bits(note.bend / 2)
+    let bend = scale14bits(note.bend / userPreferences.pitchBendWidth)
     track.add(tick, MIDI.noteOn(0, pitch, velocity))
         .add(tick, MIDI.pitchBend(0, bend))
         .add(endTick, MIDI.noteOff(0, pitch))
 }
 
-const scale14bits = (zeroOne) => {
-    if ( zeroOne <= 0 ) {
-        return Math.floor( 16384 * ( zeroOne + 1 ) / 2 );
-    }
-
-    return Math.floor( 16383 * ( zeroOne + 1 ) / 2 );
+// scale from [-1, 1) to [0, 16384)
+const scale14bits = (val) => {
+    let result = Math.floor( 16384 * ( val + 1 ) / 2 );
+    if (result > 16383) throw new RangeError("Pitch bend values are too large to be represented in the given pitch bend range. Increase 'pitch bend width' in Preferences (and on your digital instrument) to fix this.")
+    return result
 }

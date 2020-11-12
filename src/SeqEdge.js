@@ -12,6 +12,13 @@ export default class SeqEdge {
     constructor(a, b, interval) {
         this.a = a;
         this.b = b;
+        if (this.a.soundingPitch > this.b.soundingPitch) {
+            this.maxNote = this.a
+            this.minNote = this.b
+        } else {
+            this.maxNote = this.b
+            this.minNote = this.a
+        }
         this._interval = interval;
     }
     updateGraphics(animateDuration=300) {
@@ -86,12 +93,12 @@ export default class SeqEdge {
         this.line.show();
         this.text.show();
     }
-    get minNote() {
+/*     get minNote() {
         return (this.a.pitch < this.b.pitch)? this.a : this.b
     }
     get maxNote() {
         return (this.a.pitch < this.b.pitch)? this.b : this.a
-    }
+    } */
     /**
      * This function is called when the user
      * directly deletes this object. The effects may propagate
@@ -130,12 +137,26 @@ export default class SeqEdge {
         } else {
             this._interval = val.inverse()
         }
-        //this.minNote.propagateBend(0)
+
+        if (this.a.soundingPitch > this.b.soundingPitch) {
+            this.maxNote = this.a
+            this.minNote = this.b
+        } else {
+            this.maxNote = this.b
+            this.minNote = this.a
+        }
+        
         this.updateGraphics(0)
     }
     // return the amount the top note will be bent
     getBend() {
         let etDistance = tune.ETInterval(this.maxNote.pitch - this.minNote.pitch)
-        return this.interval.subtract(etDistance).cents() / 100;
+        return this.interval.abs().subtract(etDistance).cents() / 100;
     }
 }
+
+const abs = function() {
+    return (this.cents() > 0)? this : this.inverse()
+}
+tune.ETInterval.prototype.abs = abs
+tune.FreqRatio.prototype.abs = abs

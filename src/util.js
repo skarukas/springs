@@ -13,16 +13,20 @@ export function mousePosn(e) {
     }
 }
 
-export function simpleBezierPath(start, end, orientation) {
+export function addTooltip(elem, text) {
+    $(elem).attr("title", text).addClass("has-tooltip")
+}
+
+export function simpleBezierPath(start, end, orientation, easingFactor=0.25) {
     // 0.01 is added b/c beziers can't be completely straight
     if (orientation == 'vertical') {
-        let ctrlPtOffset = (end.y - start.y) / 4;
+        let ctrlPtOffset = (end.y - start.y) * easingFactor;
         return`M ${start.x} ${start.y} 
                C ${start.x + .01} ${start.y + ctrlPtOffset}
                  ${end.x + .01} ${end.y - ctrlPtOffset} 
                  ${end.x} ${end.y}`;
     } else {
-        let ctrlPtOffset = (end.x - start.x) / 4;
+        let ctrlPtOffset = (end.x - start.x) * easingFactor;
         return `M ${start.x} ${start.y} 
                 C ${start.x + ctrlPtOffset} ${start.y + .01}
                   ${end.x - ctrlPtOffset} ${end.y + .01} 

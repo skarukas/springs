@@ -4,9 +4,14 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>springs</title>
-    <link rel="stylesheet" href="style.css">
     <link rel="icon" type="image/png" href="assets/springs_icon.png"/>
-    <script src="src/include/jquery-3.5.1.js"></script>
+    
+    <link rel="stylesheet" href="src/include/jqUI/jquery-ui.min.css">
+    <link rel="stylesheet" href="style.css">
+    <script src="src/include/jqUI/external/jquery/jquery.js"></script>
+    <script src="src/include/jqUI/jquery-ui.min.js"></script>
+
+    <!-- <script src="src/include/jquery-3.5.1.js"></script> -->
     <script src="https://cdn.jsdelivr.net/npm/@svgdotjs/svg.js@3.0/dist/svg.min.js"></script>
     <script src="src/include/tune.js"></script>
 </head>
@@ -70,7 +75,7 @@
     <div id="sequencer">
         <div id="controls-container">
             <div class="filename-container">
-                <input value="untitled" maxwidth="10" 
+                <input value="untitled" maxlength="50" 
                     type="text" title="Rename" 
                     class="filename" placeholder="untitled"/>
                 <span id="save-time"></span>

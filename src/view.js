@@ -1,5 +1,7 @@
 import editor from "./editor.js"
 import playback from "./playbackData.js"
+import midi from "./midi.js"
+import { disableMouseEvents } from "./util.js"
 /* for interaction with the DOM */
 
 const view = {
@@ -68,16 +70,18 @@ const view = {
             .children()
             .attr('width', 30)
         this.iconButton("assets/open_icon.png", ø => $filePick.trigger('click'))
-            .attr('title', 'Open .spr file')
+            .attr('title', 'Open .spr or .mid file')
 
         let $filePick = $(document.createElement('input'))
             .attr('type', 'file')
             .css({
                 display: 'none',
+                width: 0,
                 opacity: 0,
             })
             .on('change', e => {
-                editor.openJSONFile(e.target.files[0])
+                editor.openFile(e.target.files[0])
+                //editor.openJSONFile(e.target.files[0])
                 $filePick.val("")
             })
             .appendTo(this.$controls)
@@ -106,7 +110,7 @@ const view = {
                 }
                 e.stopPropagation()
             })
-            .on('keypress', e => e.stopPropagation())
+            .on('keypress', e => {$fileName.trigger('input'), e.stopPropagation()})
             .on("blur", e => {
                 if (saveName) editor.fileName = e.target.value
                 else e.target.value = editor.fileName

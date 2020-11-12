@@ -11,16 +11,19 @@
         'user-select': 'none'
       });
     }
-    function simpleBezierPath(start, end, orientation) {
+    function addTooltip(elem, text) {
+      $(elem).attr("title", text).addClass("has-tooltip");
+    }
+    function simpleBezierPath(start, end, orientation, easingFactor = 0.25) {
       // 0.01 is added b/c beziers can't be completely straight
       if (orientation == 'vertical') {
-        let ctrlPtOffset = (end.y - start.y) / 4;
+        let ctrlPtOffset = (end.y - start.y) * easingFactor;
         return `M ${start.x} ${start.y} 
                C ${start.x + .01} ${start.y + ctrlPtOffset}
                  ${end.x + .01} ${end.y - ctrlPtOffset} 
                  ${end.x} ${end.y}`;
       } else {
-        let ctrlPtOffset = (end.x - start.x) / 4;
+        let ctrlPtOffset = (end.x - start.x) * easingFactor;
         return `M ${start.x} ${start.y} 
                 C ${start.x + ctrlPtOffset} ${start.y + .01}
                   ${end.x - ctrlPtOffset} ${end.y + .01} 
@@ -330,7 +333,7 @@
         let a = this.context.createOscillator();
         let oscGain = this.context.createGain();
         a.frequency.value = gliss.startNote.frequency;
-        a.frequency.linearRampToValueAtTime(gliss.endNote.frequency, this.now + relativeEnd);
+        a.frequency.setValueCurveAtTime(gliss.getFreqCurve(), this.now + relativeStart, end - start);
         a.type = 'sawtooth';
         let crossFadeDur = 0.1;
         a.start(this.now + relativeStart);
@@ -602,13 +605,25 @@
 
     const userPreferences = {
       propagateBendAfterDeletion: true,
-      alwaysShowEdges: true
+      alwaysShowEdges: true,
+      pitchBendWidth: 1,
+      // semitones
+      glissEasing: 1
     };
 
     class SeqEdge {
       constructor(a, b, interval) {
         this.a = a;
         this.b = b;
+
+        if (this.a.soundingPitch > this.b.soundingPitch) {
+          this.maxNote = this.a;
+          this.minNote = this.b;
+        } else {
+          this.maxNote = this.b;
+          this.minNote = this.a;
+        }
+
         this._interval = interval;
       }
 
@@ -697,14 +712,13 @@
         this.line.show();
         this.text.show();
       }
+      /*     get minNote() {
+              return (this.a.pitch < this.b.pitch)? this.a : this.b
+          }
+          get maxNote() {
+              return (this.a.pitch < this.b.pitch)? this.b : this.a
+          } */
 
-      get minNote() {
-        return this.a.pitch < this.b.pitch ? this.a : this.b;
-      }
-
-      get maxNote() {
-        return this.a.pitch < this.b.pitch ? this.b : this.a;
-      }
       /**
        * This function is called when the user
        * directly deletes this object. The effects may propagate
@@ -749,8 +763,15 @@
           this._interval = val;
         } else {
           this._interval = val.inverse();
-        } //this.minNote.propagateBend(0)
+        }
 
+        if (this.a.soundingPitch > this.b.soundingPitch) {
+          this.maxNote = this.a;
+          this.minNote = this.b;
+        } else {
+          this.maxNote = this.b;
+          this.minNote = this.a;
+        }
 
         this.updateGraphics(0);
       } // return the amount the top note will be bent
@@ -758,10 +779,17 @@
 
       getBend() {
         let etDistance = tune.ETInterval(this.maxNote.pitch - this.minNote.pitch);
-        return this.interval.subtract(etDistance).cents() / 100;
+        return this.interval.abs().subtract(etDistance).cents() / 100;
       }
 
     }
+
+    const abs = function () {
+      return this.cents() > 0 ? this : this.inverse();
+    };
+
+    tune.ETInterval.prototype.abs = abs;
+    tune.FreqRatio.prototype.abs = abs;
 
     // and SeqEdge
 
@@ -796,21 +824,20 @@
       }
 
       set pitch(val) {
-        console.log("changing", this.pitch, "to", val);
+        //console.log("changing", this.pitch, "to", val)
         this._pitch = Math.floor(val.clamp(0, 128));
         this.redrawPosition(0);
-      }
+      } // range : [-0.5, 0.5)
+
 
       set bend(val) {
         let steps = Math.round(Math.abs(val));
 
-        if (val > 0.5) {
-          console.log(val, "means", steps, val - steps);
+        if (val >= 0.5) {
           this.pitch += steps;
           this._bend = val - steps;
         } else if (val < -0.5) {
-          console.log(val, "means", -steps, val + steps);
-          this.pitch -= steps;
+          this.pitch += -steps;
           this._bend = val + steps;
         } else {
           this._bend = val;
@@ -1015,6 +1042,10 @@
         this.centDisplay.x(this.handleX - this.height - this.centDisplay.length() - 5).cy(this.handleY);
         disableMouseEvents(this.centDisplay);
         this.resizeRight = canvas.rect(4, this.height).move(this.xEnd - 4, this.y).radius(2).stroke('black').opacity(0.3).fill('black');
+        addTooltip(this.handle.node, "Drag to attach notes by an interval");
+        addTooltip(this.rect.node, "Shift+Drag to adjust pitch bend");
+        addTooltip(this.resizeRight.node, "Drag to resize; Shift+Drag to create a gliss");
+        addTooltip(this.indicator.node, "Drag to resize");
         this.group = canvas.group();
         this.rect.addTo(this.group);
         this.handle.addTo(this.group);
@@ -1133,7 +1164,7 @@
 
 
       propagateBend(bend = this.bend, animateDuration = 300, awayFrom = []) {
-        console.log("started at", this.pitch);
+        //console.log("started at", this.pitch)
         this.bend = bend;
         this.BFS({
           noVisit: awayFrom,
@@ -1142,9 +1173,8 @@
           combine: (edge, child, bend) => {
             let edgeBend = edge.maxNote == child ? edge.getBend() : -edge.getBend();
             let newBend = edgeBend + bend;
-            console.log("got to", child.pitch);
             child.bend = newBend;
-            return [newBend];
+            return [child.bend];
           }
         });
       }
@@ -1190,10 +1220,13 @@
     }
     SeqNote.graph = new Map();
 
+    const bezier = require("bezier-easing");
+
     class SeqGliss {
       constructor(start, end) {
         this.startNote = start;
         this.endNote = end;
+        this.easing = userPreferences.glissEasing;
       }
 
       set selected(val) {
@@ -1204,6 +1237,10 @@
 
       get selected() {
         return this._selected;
+      }
+
+      get duration() {
+        return (this.endNote.start - this.startNote.end).clamp(0, Infinity);
       }
       /**
        * This function is called when the user
@@ -1240,7 +1277,7 @@
         if (this.startNote.xEnd >= this.endNote.x) {
           /* color = 'red'
           width = 2 */
-          throw "BADDADDDADA";
+          throw "Forbidden gliss.";
         } else {
           this.gradient = this.canvas.gradient('linear', add => {
             add.stop(0, style.noteFill(this.startNote));
@@ -1256,10 +1293,16 @@
         }, {
           x: this.endNote.x,
           y: this.endNote.y + editor$1.zoomY / 2
-        }, 'horizontal')).stroke({
+        }, 'horizontal', this.easing)).stroke({
           color,
           width
-        }).fill('none').opacity(0.6).insertAfter(this.startNote.rect).insertAfter(this.endNote.rect);
+        }).fill('none').opacity(0.6).insertBefore(this.startNote.group).insertBefore(this.endNote.group); //this.line.addClass('gliss-line')
+        // add tooltip
+
+        /* this.line.element("title")
+            .words("Shift+Drag to adjust easing") */
+
+        addTooltip(this.line.node, "Shift+Drag to adjust easing");
         editor$1.assignMouseHandler(this, this.line, "gliss_line");
       }
 
@@ -1282,7 +1325,22 @@
         }, {
           x: this.endNote.x,
           y: this.endNote.y + editor$1.zoomY / 2
-        }, 'horizontal'));
+        }, 'horizontal', this.easing));
+      }
+
+      getFreqCurve() {
+        const glissEasing = bezier(this.easing, 0, 1 - this.easing, 1);
+        const glissPoints = [];
+        const n = this.duration;
+
+        for (let i = 0; i < n; i++) glissPoints.push(glissEasing(i / (n - 1)));
+
+        let f1 = this.startNote.frequency;
+        let f2 = this.endNote.frequency;
+        let dFreq = f2 - f1;
+        let freqCurve = glissPoints.map(n => 2 ** n - 1) // make exponential (pitch)
+        .map(n => n * dFreq + f1);
+        return freqCurve;
       }
 
     }
@@ -1337,6 +1395,68 @@
         }
 
         return tracks;
+      },
+
+      readFromFile(file) {
+        return new Promise((resolve, reject) => {
+          if (!file) return reject();
+          view.showLoader(`loading ${file.name}...`, ø => {
+            let reader = new FileReader();
+            reader.readAsBinaryString(file);
+
+            reader.onload = ø => {
+              let smf = MIDI.SMF(reader.result);
+              let notesOn = [];
+              let notes = [];
+              let bends = [];
+
+              for (let mtrk of smf) {
+                for (let mid of mtrk) {
+                  if (mid.isNoteOn()) {
+                    let pitch = mid.getNote();
+                    notesOn[pitch] = {
+                      start: mid.tt / 32,
+                      velocity: mid.getVelocity(),
+                      pitch
+                    };
+                  } else if (mid.isNoteOff()) {
+                    let pitch = mid.getNote();
+                    let note = notesOn[pitch];
+                    delete notesOn[pitch];
+
+                    if (note) {
+                      note.duration = mid.tt / 32 - note.start;
+                      notes.push(note);
+                    }
+                  } else if (mid[0] >= 224 && mid[0] < 240) {
+                    // pitch bend
+                    // right now only works for one channel
+                    let bend = mid[2] << 7 | mid[1];
+                    bend = bend / 16384 * 2 - 1;
+                    bend *= userPreferences.pitchBendWidth;
+                    bends.push({
+                      time: mid.tt / 32,
+                      bend
+                    });
+                  }
+                }
+              }
+
+              bends = bends.sort((a, b) => a.time - b.time);
+              notes = notes.sort((a, b) => a.start - b.start);
+              let i = 0;
+              let currBend = 0;
+
+              for (let note of notes) {
+                if (note.start >= bends[i].time) currBend = bends[i++].bend;
+                note.bend = currBend;
+              }
+
+              view.hideLoader();
+              resolve(notes);
+            };
+          });
+        });
       }
 
     };
@@ -1346,88 +1466,97 @@
       let endTick = note.end * 32;
       let pitch = pitchName(note.pitch, true);
       let velocity = note.velocity;
-      let bend = scale14bits(note.bend / 2);
+      let bend = scale14bits(note.bend / userPreferences.pitchBendWidth);
       track.add(tick, MIDI.noteOn(0, pitch, velocity)).add(tick, MIDI.pitchBend(0, bend)).add(endTick, MIDI.noteOff(0, pitch));
-    }
+    } // scale from [-1, 1) to [0, 16384)
 
-    const scale14bits = zeroOne => {
-      if (zeroOne <= 0) {
-        return Math.floor(16384 * (zeroOne + 1) / 2);
-      }
 
-      return Math.floor(16383 * (zeroOne + 1) / 2);
+    const scale14bits = val => {
+      let result = Math.floor(16384 * (val + 1) / 2);
+      if (result > 16383) throw new RangeError("Pitch bend values are too large to be represented in the given pitch bend range. Increase 'pitch bend width' in Preferences (and on your digital instrument) to fix this.");
+      return result;
     };
 
-    let stack = []; // basically a decorator that saves the action to the stack
+    let undoStack = [];
+    let redoStack = []; // basically a decorator that saves the action to the stack
     // while the process is being completed, the subprocesses
     // are saved to a substack so that they can be undone all 
     // at once or individually
 
     function mutator(func, name = "unknown") {
       return function (...args) {
+        redoStack = [];
         let action = addAction(func, name, ...args); // child process adds its actions to substack
 
-        let temp = stack;
-        stack = action.stack;
+        let temp = undoStack;
+        undoStack = action.stack;
         let result = action.do();
-        stack = temp;
+        undoStack = temp;
         return result;
       };
     }
-    let temp; // a function to be called when a sequence of calls to `func`
+    let tempStack;
+    let tempAction; // a function to be called when a sequence of calls to `func`
     //  is about to take place
 
     const macroActionStart = function (func, name = "unknown") {
+      redoStack = [];
+      name = "macro_" + name;
       let action = {
-        name: "macro_" + name,
-        do: undefined,
-        // fix
-        undo: macroUndo(func, name),
+        name,
+        undo: macroUndo(name),
         stack: []
       };
-      stack.push(action);
-      temp = stack;
-      stack = action.stack;
+      undoStack.push(action);
+      tempStack = undoStack;
+      tempAction = action;
+      undoStack = action.stack;
       console.log("start macro");
     };
 
-    function macroUndo(fn, name) {
+    function macroUndo(name) {
       let notes = editor$1.selection.filter(e => e instanceof SeqNote);
+      let pairs;
 
-      if (name == "resizeRight") {
-        let pairs = notes.map(e => [e, e.end]);
-        return () => {
-          for (let [note, end] of pairs) note.end = end;
-        };
-      } else if (name == "resizeLeft") {
-        let pairs = notes.map(e => [e, e.start]);
-        return () => {
-          for (let [note, start] of pairs) note.start = start;
-        };
-      } else if (name == "move") {
-        let pairs = notes.map(e => [e, e.start, e.pitch]);
-        return () => {
-          for (let [note, start, pitch] of pairs) {
-            note.startMove = start;
-            note.pitch = pitch;
-          }
-        };
-      } else if (name == "bend") {
-        let pairs = notes.map(e => [e, e.pitch, e.bend]);
-        return () => {
-          for (let [note, pitch, bend] of pairs) {
-            note.pitch = pitch;
-            note.bend = bend;
-          }
-        };
+      switch (name) {
+        case "macro_resizeRight":
+          pairs = notes.map(e => [e, e.end]);
+          return () => {
+            for (let [note, end] of pairs) note.end = end;
+          };
+
+        case "macro_resizeLeft":
+          pairs = notes.map(e => [e, e.start]);
+          return () => {
+            for (let [note, start] of pairs) note.start = start;
+          };
+
+        case "macro_move":
+          notes = editor$1.selectionForest.concat(notes);
+          pairs = notes.map(e => [e, e.start, e.pitch]);
+          return () => {
+            for (let [note, start, pitch] of pairs) {
+              note.startMove = start;
+              note.pitch = pitch;
+            }
+          };
+
+        case "macro_bend":
+          pairs = notes.map(e => [e, e.pitch, e.bend]);
+          return () => {
+            for (let [note, pitch, bend] of pairs) {
+              note.pitch = pitch;
+              note.bend = bend;
+            }
+          };
       }
     }
 
     const macroActionEnd = function () {
-      if (temp) {
-        stack = temp;
-        console.log("end macro");
-        temp = undefined;
+      if (tempStack) {
+        undoStack = tempStack;
+        tempStack = undefined;
+        tempAction.do = macroUndo(tempAction.name);
       }
     };
 
@@ -1435,17 +1564,95 @@
       let action = {
         name,
         do: () => func(...args),
-        undo: getUndo(func, ...args),
         stack: []
       };
-      stack.push(action);
+      action.undo = getUndo(action, ...args), undoStack.push(action);
       return action;
     }
 
-    function getUndo(f, ...args) {
+    function getUndo(action, ...args) {
+      let notes;
+      let pairs;
+
+      switch (action.name) {
+        case "resetBend":
+          notes = args.filter(e => e instanceof SeqNote);
+          pairs = notes.map(e => [e, e.pitch, e.bend]);
+          return () => {
+            for (let [note, pitch, bend] of pairs) {
+              note.pitch = pitch;
+              note.bend = bend;
+            }
+          };
+
+        case "disconnect":
+          let interval = args[0].getIntervalTo(args[1]);
+          return () => {
+            editor$1.connect(args[0], args[1], interval);
+            undoStack.pop();
+          };
+
+        case "connect":
+          notes = args.filter(e => e instanceof SeqNote);
+          pairs = notes.map(e => [e, e.pitch, e.bend]);
+          return () => {
+            editor$1.disconnect(args[0], args[1]);
+
+            for (let [note, pitch, bend] of pairs) {
+              note.pitch = pitch;
+              note.bend = bend;
+            }
+
+            undoStack.pop();
+          };
+
+        case "tuneAsPartials":
+          return () => action.stack.map(a => a.undo());
+
+        case "delete":
+        case "addNote":
+        case "addGliss":
+        case "divide":
+        case "pasteJSON":
+        case "paste":
+        case "clearAllData":
+        case "addCompressedData":
+        case "transpose":
+        default:
+          return () => {
+            addMessage("Unable to undo", 'orange');
+          };
+      }
     }
 
-    window.stack = stack;
+    function undo() {
+      let action = undoStack.pop();
+
+      if (action) {
+        action.undo();
+        redoStack.push(action);
+      } else {
+        addMessage("Nothing to undo", "orange");
+      }
+
+      return action;
+    }
+    function redo$1() {
+      let action = redoStack.pop();
+
+      if (action) {
+        action.do();
+        undoStack.push(action);
+      } else {
+        addMessage("Nothing to redo", "orange");
+      }
+
+      return action;
+    }
+    window.undo = undo;
+    window.redo = redo$1;
+    window.stack = undoStack;
+    window.redoStack = redoStack;
 
     const handlers = {};
     let display = false; // this is problematic
@@ -1637,15 +1844,28 @@
     };
     handlers["gliss_line"] = {
       clicked(e, gliss) {
-        if (e.metaKey || e.ctrlKey) editor$1.toggleObjectInSelection(gliss);else editor$1.selectObject(gliss);
+        if (e.metaKey || e.ctrlKey) {
+          editor$1.toggleObjectInSelection(gliss);
+        } else if (e.shiftKey) {
+          editor$1.selectObject(gliss);
+          editor$1.action = editor$1.glissEasing;
+          macroActionStart(editor$1.glissEasing, "glissEasing");
+        } else {
+          editor$1.selectObject(gliss);
+        }
+
         e.stopPropagation();
+      },
+
+      hovered(e, gliss) {
+        if (e.shiftKey) editor$1.setCursorStyle("ns-resize");
       }
 
     };
 
     /* for interaction with the DOM */
 
-    const view = {
+    const view$1 = {
       $loader: $('.loader-container'),
       $guiContainer: $('#sequencer'),
       $controls: $('#controls-container'),
@@ -1699,12 +1919,14 @@
           paddingRight: 0,
           paddingLeft: 0
         }).children().attr('width', 30);
-        this.iconButton("assets/open_icon.png", ø => $filePick.trigger('click')).attr('title', 'Open .spr file');
+        this.iconButton("assets/open_icon.png", ø => $filePick.trigger('click')).attr('title', 'Open .spr or .mid file');
         let $filePick = $(document.createElement('input')).attr('type', 'file').css({
           display: 'none',
+          width: 0,
           opacity: 0
         }).on('change', e => {
-          editor$1.openJSONFile(e.target.files[0]);
+          editor$1.openFile(e.target.files[0]); //editor.openJSONFile(e.target.files[0])
+
           $filePick.val("");
         }).appendTo(this.$controls);
         this.divider();
@@ -1723,12 +1945,14 @@
           }
 
           e.stopPropagation();
-        }).on('keypress', e => e.stopPropagation()).on("blur", e => {
+        }).on('keypress', e => {
+          $fileName.trigger('input'), e.stopPropagation();
+        }).on("blur", e => {
           if (saveName) editor$1.fileName = e.target.value;else e.target.value = editor$1.fileName;
           saveName = true;
         });
-        view.iconButton("assets/wand_icon.png", ø => editor$1.applyToSelection(editor$1.tuneAsPartials)).attr('title', 'Fit selection to the harmonic series');
-        let $eqButton = view.iconButton("assets/frac_icon.webp", ø => editor$1.applyToSelection(editor$1.equallyDivide, $divisions.val())).attr('title', 'Equally divide').children().attr({
+        view$1.iconButton("assets/wand_icon.png", ø => editor$1.applyToSelection(editor$1.tuneAsPartials)).attr('title', 'Fit selection to the harmonic series');
+        let $eqButton = view$1.iconButton("assets/frac_icon.webp", ø => editor$1.applyToSelection(editor$1.equallyDivide, $divisions.val())).attr('title', 'Equally divide').children().attr({
           width: 12,
           height: 15
         });
@@ -1797,6 +2021,108 @@
 
     };
 
+    /**
+     * Model the predicted sequence of JI (or other) 
+     *   intervals as a hidden Markov model, with
+     *   interval classes as observed variables
+     *   and the sequence moving upwards in pitch
+     */
+    const instances = {};
+    const states = new Set();
+    const model = {
+      // viterbi algorithm
+      // input: interval classes ascending
+      predictSequence(observedStates) {
+        let v = [];
+        let n = observedStates.length;
+
+        for (let t = 0; t < n; t++) {
+          v[t] = {};
+
+          for (let state of states) {
+            let emission = p(observedStates[t], state);
+            console.log(observedStates[t] + " | " + state, emission);
+            let best = {
+              prob: -1,
+              path: []
+            };
+
+            if (t == 0) {
+              best = {
+                prob: p(state),
+                path: []
+              };
+            } else {
+              for (let prevState of states) {
+                let last = v[t - 1][prevState];
+                let prob = last.prob * p(state, prevState);
+                console.log(last.prob + " * " + state + " | " + prevState, p(state, prevState));
+
+                if (prob > best.prob) {
+                  best = {
+                    prob: prob,
+                    path: last.path
+                  };
+                }
+              }
+            }
+
+            v[t][state] = {
+              prob: emission * best.prob,
+              path: best.path.concat(state)
+            };
+          }
+        }
+
+        console.log(v);
+        let best = {
+          prob: -1,
+          path: []
+        }; // recover max path
+
+        for (let state in v[n - 1]) {
+          if (v[n - 1][state].prob > best.prob) best = v[n - 1][state];
+        }
+
+        return best.path;
+      },
+
+      recordState(observed, state, prevState) {
+        model.updateProbability(); // add to universal
+
+        model.updateProbability(state); // Q[i]
+
+        model.updateProbability(observed, state); // O[i] and Q[i])
+
+        if (prevState) model.updateProbability(state, prevState); // Q[i] and Q[i-1]
+
+        states.add(state.toString());
+        console.log(instances);
+      },
+
+      updateProbability(event = "U", sampleSpace) {
+        event = event.toString();
+        let key = sampleSpace ? event + " " + sampleSpace.toString() : event;
+        instances[key] = (instances[key] ?? 0) + 1;
+      }
+
+    }; // conditional or marginal probability
+
+    function p(event, sampleSpace) {
+      if (sampleSpace) {
+        let jointString = event.toString() + " " + sampleSpace.toString();
+
+        if (instances[jointString] && instances[sampleSpace.toString()]) {
+          return instances[jointString] / instances[sampleSpace.toString()];
+        } else {
+          // hacky way to get tiny conditional scaled by marginal
+          return p(event) / instances["U"];
+        }
+      } else {
+        return instances[event.toString()] / instances["U"];
+      }
+    }
+
     const {
       shape,
       intersect
@@ -1813,7 +2139,7 @@
 
       set fileName(val) {
         val = val.split(".")[0];
-        view.changeFileName(val);
+        view$1.changeFileName(val);
         editor$1._fileName = val;
         document.title = val;
       },
@@ -1904,6 +2230,7 @@
             break;
 
           case editor$1.bend:
+          case editor$1.glissEasing:
           case editor$1.resizeLeft:
           case editor$1.resizeRight:
             editor$1.applyToSelection(editor$1.action, e);
@@ -2048,9 +2375,32 @@
       URL.revokeObjectURL(a.href);
     };
 
+    editor$1.openFile = function (file) {
+      if (file.name.endsWith(".mid")) editor$1.openMIDIFile(file);else if (file.name.endsWith(".spr")) editor$1.openJSONFile(file);else addMessage("Filetype not recognized.", 'red');
+    };
+
+    editor$1.openMIDIFile = function (file) {
+      midi.readFromFile(file).then(notes => {
+        let compressed = {
+          notes,
+          edges: [],
+          glisses: []
+        };
+        editor$1.clearAllData();
+        editor$1.addCompressedData(compressed);
+        let name = file.name.replace(/\..+$/, "");
+        $('.filename').val(name);
+        editor$1.fileName = name;
+        addMessage(`Loaded ${file.name}.`, 'green');
+      }).catch(e => {
+        addMessage("Unable to parse file.", 'red');
+        addMessage(e, 'red');
+      });
+    };
+
     editor$1.openJSONFile = function (file) {
       if (file) {
-        view.showLoader(`loading ${file.name}...`, ø => {
+        view$1.showLoader(`loading ${file.name}...`, ø => {
           let reader = new FileReader();
           reader.readAsText(file);
 
@@ -2071,7 +2421,7 @@
               addMessage(e, 'red');
             }
 
-            view.hideLoader();
+            view$1.hideLoader();
           };
         });
       }
@@ -2127,23 +2477,10 @@
         }
 
         adjMat.push([]);
-      } // Add necessary glisses (glisses between selected notes)
+      }
 
-
-      for (let i = 0; i < notes.length; i++) {
-        for (let gliss of notes[i].glissOutputs) {
-          let j = notes.indexOf(gliss.endNote);
-
-          if (j != -1) {
-            compressed.glisses.push({
-              start: i,
-              end: j
-            });
-          }
-        }
-      } // returns the index of the inserted note
+      let seenNotes = []; // returns the index of the inserted note
       // and whether or not the note was a new addition
-
 
       function addCompressedNote(note) {
         let copy = {
@@ -2162,7 +2499,12 @@
           }
         }
 
-        if (idx == -1) return compressed.notes.push(copy) - 1;else return idx;
+        if (idx == -1) {
+          idx = compressed.notes.push(copy) - 1;
+          seenNotes.push(note);
+        }
+
+        return idx;
       }
       /* Add the ones that are connected */
 
@@ -2184,7 +2526,22 @@
       /* Add the ones that are not connected */
 
 
-      notes.map(addCompressedNote);
+      notes.map(addCompressedNote); // Add necessary glisses (glisses between selected notes)
+
+      for (let i = 0; i < seenNotes.length; i++) {
+        for (let gliss of seenNotes[i].glissOutputs) {
+          let j = seenNotes.indexOf(gliss.endNote);
+
+          if (j != -1) {
+            compressed.glisses.push({
+              easing: gliss.easing,
+              start: i,
+              end: j
+            });
+          }
+        }
+      }
+
       return compressed;
     };
 
@@ -2378,6 +2735,8 @@
 
       for (let glissObj of compressed.glisses) {
         let gliss = editor$1.gliss(notes[glissObj.start], notes[glissObj.end]);
+        gliss.easing = glissObj.easing || gliss.easing;
+        gliss.updateGraphics(0);
         glisses.push(gliss);
       }
       /* Navigate to saved view */
@@ -2633,6 +2992,10 @@
       let gliss;
       /* Stop from extending to a note before the start point */
 
+      for (let {
+        endNote
+      } of start.glissOutputs) if (endNote == end) return end;
+
       if (start.xEnd < end.x) {
         gliss = new SeqGliss(start, end);
         start.glissOutputs.push(gliss);
@@ -2650,17 +3013,32 @@
     };
 
     editor$1.getAllConnected = function (notes) {
-      let forest = new Set();
+      /* let forest = new Set()
+      for (let note of notes) {
+          if (!forest.has(note)) {
+              let tree = note.getAllConnected()
+              for (let e of tree) forest.add(e)
+          }
+      }
+      return [...forest] */
+      return editor$1.getComponents(notes).flat();
+    };
+
+    editor$1.getComponents = function (notes) {
+      let seen = new Set();
+      let forest = [];
 
       for (let note of notes) {
-        if (!forest.has(note)) {
+        if (!seen.has(note)) {
           let tree = note.getAllConnected();
 
-          for (let e of tree) forest.add(e);
+          for (let e of tree) seen.add(e);
+
+          forest.push(tree);
         }
       }
 
-      return [...forest];
+      return forest;
     };
 
     editor$1.applyToSelection = function (fn, param) {
@@ -2671,7 +3049,8 @@
 
     let startPosns;
     let lastDeltas;
-    editor$1.move = mutator(function (e, objs, forest) {
+
+    editor$1.move = function (e, objs, forest) {
       if (!forest.length) forest = objs;
       let notes = objs.filter(e => e instanceof SeqNote);
       forest = forest.filter(e => e instanceof SeqNote);
@@ -2713,7 +3092,8 @@
         x: deltaX,
         y: deltaY
       };
-    }, "move"); // divide moving from note1 to note2
+    }; // divide moving from note1 to note2
+
 
     editor$1.equallyDivide = mutator(function (n, ...objs) {
       if (n < 1) return;
@@ -2762,7 +3142,17 @@
       let notes = objs.filter(e => e instanceof SeqNote);
 
       if (notes.length > 1) {
-        notes.sort((a, b) => a.pitch - b.pitch);
+        notes.sort((a, b) => a.pitch - b.pitch); //// Only for HMM demo::
+
+        let intervalClasses = Array(notes.length - 1);
+
+        for (let i = 0; i < notes.length - 1; i++) {
+          intervalClasses[i] = Math.round(notes[i + 1].soundingPitch - notes[i].soundingPitch);
+        }
+
+        console.log(intervalClasses);
+        console.log(model.predictSequence(intervalClasses)); //// end
+
         let freqs = notes.map(a => a.asNote.asFrequency());
         let {
           partials,
@@ -2781,7 +3171,8 @@
       }
     }, "tuneAsPartials");
     let startStarts;
-    editor$1.resizeLeft = mutator(function (e, ...objs) {
+
+    editor$1.resizeLeft = function (e, ...objs) {
       let notes = objs.filter(e => e instanceof SeqNote);
       e = editor$1.canvas.point(e.x, e.y);
 
@@ -2797,9 +3188,11 @@
         let anustart = (startStarts.get(note) + deltaX).clamp(0, note.end - editor$1.timeGridSize);
         note.start = editor$1.quantizeTime(anustart);
       }
-    }, "resizeLeft");
+    };
+
     let startEnds;
-    editor$1.resizeRight = mutator(function (e, ...objs) {
+
+    editor$1.resizeRight = function (e, ...objs) {
       let notes = objs.filter(e => e instanceof SeqNote);
       e = editor$1.canvas.point(e.x, e.y);
 
@@ -2815,7 +3208,8 @@
         let anuend = (startEnds.get(note) + deltaX).clamp(note.start + editor$1.timeGridSize, editor$1.widthInTime);
         note.end = editor$1.quantizeTime(anuend);
       }
-    }, "resizeRight");
+    };
+
     editor$1.delete = mutator(function (e, ...objs) {
       for (let obj of objs) obj.delete();
 
@@ -2837,6 +3231,7 @@
     let lastY;
     editor$1.bend = mutator(function (e, ...objs) {
       let notes = objs.filter(e => e instanceof SeqNote);
+      notes = editor$1.getComponents(notes).map(a => a[0]);
       lastY = lastY || e.y;
       let deltaY = e.y - lastY;
 
@@ -2848,6 +3243,25 @@
 
       lastY = e.y;
     }, "bend");
+    editor$1.glissEasing = mutator(function (e, ...objs) {
+      let glisses = objs.filter(e => e instanceof SeqGliss);
+      lastY = lastY || e.y;
+      let deltaY = e.y - lastY;
+
+      for (let gliss of glisses) {
+        let newBend = Math.round(gliss.easing * 100 - deltaY) / 100;
+        newBend = newBend.clamp(0.01, 1);
+
+        if (newBend != lastBend[gliss]) {
+          gliss.easing = newBend;
+          gliss.updateGraphics(0);
+        }
+
+        lastBend[gliss] = newBend;
+      }
+
+      lastY = e.y;
+    }, "glissEasing");
 
     editor$1.typeEdit = function (_, ...objs) {
       if (!objs.length) return;
@@ -2972,6 +3386,8 @@
         if (interval) {
           edge.interval = interval;
           edge.minNote.propagateBend(0);
+          let pitchClass = Math.round(edge.maxNote.soundingPitch - edge.minNote.soundingPitch);
+          model.recordState(pitchClass, interval);
         }
       }).addClass("text-input");
       return input;
@@ -3047,7 +3463,7 @@
     };
 
     $(ø => {
-      view.init();
+      view$1.init();
       editor$1.draw();
       ruler.draw();
       grid.draw();
@@ -3067,12 +3483,18 @@
           } else if (e.key == 'c') {
             e.preventDefault();
             editor$1.copySelection();
-          } else if (e.key == 'r') {
-            e.preventDefault();
-            editor$1.applyToSelection(editor$1.resetBend);
           } else if (e.key == 'v') {
             e.preventDefault();
             editor$1.paste(e);
+          } else if (e.key == "z" && !e.shiftKey) {
+            undo();
+            e.preventDefault();
+          } else if (e.key == "z" && e.shiftKey || e.key == "y") {
+            redo();
+            e.preventDefault();
+          } else if (e.key == 'r') {
+            e.preventDefault();
+            editor$1.applyToSelection(editor$1.resetBend);
           } else if (+e.key) {
             /* check for digits */
             e.preventDefault();
@@ -3081,7 +3503,7 @@
           } else if (e.key == 's') {
             // save
             e.preventDefault();
-            if (editor$1.updateLocalStorage()) view.showSaveMessage();else addMessage('Unable to save to browser storage', 'red');
+            if (editor$1.updateLocalStorage()) view$1.showSaveMessage();else addMessage('Unable to save to browser storage', 'red');
           } else if (e.key == 'o') {
             $filePick.trigger('click');
             e.preventDefault();
@@ -3151,10 +3573,21 @@
         $('.control-screen').delay(500).fadeIn(500);
       }
 
-      view.hideLoader();
+      $(document).tooltip({
+        items: ".has-tooltip",
+        show: {
+          delay: 1000,
+          effect: "fadeIn",
+          duration: 300
+        },
+        close: function () {
+          $(".ui-helper-hidden-accessible > *:not(:last)").remove();
+        }
+      });
+      view$1.hideLoader();
     });
     window.prefs = userPreferences;
-    window.view = view;
+    window.view = view$1;
     window.editor = editor$1;
 
 }());

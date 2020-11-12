@@ -18,61 +18,88 @@
 /- play selection
 /- copy to clipboard
 /- load from file/clipboard
-
-
-
-/- Make glisses selectable/deletable
-/- Make glisses copyable/savable!!! (Compressable) I think they are already ???
-- Eliminate double gliss connections
-
-- rethink "addMessage" popups
-- Make color more visible
-/- Make global option to show edges
-- Make editing window clearer
-- Allow undo/redo
-    - need to figure out macro actions (move/bend/resize)....
-- Fix updateGraphics bug -- dividing JI tritone in 3 doesn't update the high note posn (?)
-- Add custom auto-connections
 /- Some notes are not being deleted correctly (you can hear them in playback)
 /- Fix intersection for non-rectangles (currently using SVG.checkIntersection which only checks bounding boxes)
 /- Make it so the shadowpitch changes when changing bend/interval
-- Make playback about beats or secs rather than pixels
-    - make playback line adjust when zooming 
-
-- Fix zoom : (((
+/- Make glisses selectable/deletable
+/- Make glisses copyable/savable!!! (Compressable) I think they are already ???
+/- Eliminate double gliss connections
+/- saved glisses are corrupt, some glisses don't copy
+/- make it work on safari
+/- makes glisses deletable when deleting notes
+/- save to file
+/- make things async or at least create loading screen so the page doesn't freeze
+/- Fix zoom : (((
     /- viewbox is the way to go but mouseposns are currently screwed up
     /- box select now screwed up
     /- need keyboard and ruler to scale with the zoom amount
     /- fix aspect ratio of editor? make it slightly editable?
     /- edit menu zoom messed up
-    - Fix zoom range options
     /- check all references to grid draw
-- enable redrawing of canvas
+/- Make global option to show edges
 /- zoom still big problem :-(
+/- save title in json
+/- export to midi
+/- import midi
+    /- allow diff scalings of bend
+/- add backgrounnd for "springs" and subtitle
+/- octave transposition messed up again... :(
+    /- it's because of the bend update change
+    /- works now but still messed up when transposing middle note
+/- measure interval between pitches
+/- add ease editing for glisses!
+/- save gliss easing
+
+
+
+- rethink "addMessage" popups
+- Make color more visible
+
+- Make editing window clearer
+/- Allow undo/redo
+    - need to figure out macro actions (move/bend/resize)....
+    - Redo sometimes creates duplicate of note (??)
+- Fix updateGraphics bug -- dividing JI tritone in 3 doesn't update the high note posn (?)
+- Add custom auto-connections
+- Make playback about beats or secs rather than pixels
+    - make playback line adjust when zooming 
+
+
+
+
+
+- Fix zoom range options
+    
+- enable redrawing of canvas
+
 - create scrollbars?
 - make audioparam smoother
-- saved glisses are corrupt, some glisses don't copy
-/- make it work on safari
+
 - sometimes notes get moved over before measure 1 ??
-/- makes glisses deletable when deleting notes
+
 - add comments in editor
-/- save to file
+
 - integrate copy/paste with clipboard?
 - pasting one note doesn't copy its bend
-/- save title in json
+
 - create channels with preference towards a specific pitch range
 - add gliss to midi capabilities
-/- make things async or at least create loading screen so the page doesn't freeze
+- add error when gliss goes backwards
 - add warning if the editor is unable to load
-/- export to midi
-- make open/save menus instead of different buttons
-/- add backgrounnd for "springs" and subtitle
-- octave transposition messed up again... :(
-    - it's because of the bend update change
-    - works now but still messed up when transposing middle note
-- pitch bend bug in logic?? should i fix that
-/- measure interval between pitches
-    - add tool for this
 
+- import midi need to deal with multiple channels
+- import midi need to do tempo thing
+    
+- make open/save menus instead of different buttons
+
+- pitch bend bug in logic?? should i fix that
+
+
+- GUI buttons
+    - add measuremnet tool
+    - add settings
+    - save settings in local storage
+- enable parsing of cents
+- editing menu has wrong text
 - glisses don't play back on safari
 - be more attentive to i/o operations that may fail

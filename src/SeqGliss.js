@@ -1,11 +1,14 @@
-import { simpleBezierPath } from "./util.js"
+import { simpleBezierPath, addTooltip } from "./util.js"
 import style from "./style.js"
 import editor from "./editor.js"
+import userPreferences from "./userPreferences.js";
+const bezier = require("bezier-easing")
 
 export default class SeqGliss {
     constructor(start, end) {
         this.startNote = start;
         this.endNote = end;
+        this.easing = userPreferences.glissEasing
     }
     set selected(val) {
         this._selected = val;
@@ -14,6 +17,9 @@ export default class SeqGliss {
     }
     get selected() {
         return this._selected;
+    }
+    get duration() {
+        return (this.endNote.start - this.startNote.end).clamp(0, Infinity)
     }
     /**
      * This function is called when the user
@@ -44,7 +50,7 @@ export default class SeqGliss {
         if (this.startNote.xEnd >= this.endNote.x) {
             /* color = 'red'
             width = 2 */
-            throw "BADDADDDADA"
+            throw "Forbidden gliss."
         } else {
             this.gradient = this.canvas.gradient('linear', add => {
                 add.stop(0, style.noteFill(this.startNote));
@@ -55,12 +61,21 @@ export default class SeqGliss {
         }
         this.line = canvas.path(simpleBezierPath(
                 {x: this.startNote.xEnd, y: this.startNote.y + editor.zoomY / 2}, 
-                {x: this.endNote.x, y: this.endNote.y + editor.zoomY / 2}, 'horizontal'))
+                {x: this.endNote.x, y: this.endNote.y + editor.zoomY / 2}, 
+                'horizontal',
+                this.easing))
             .stroke({color, width})
             .fill('none')
             .opacity(0.6)
-            .insertAfter(this.startNote.rect)
-            .insertAfter(this.endNote.rect);
+            .insertBefore(this.startNote.group)
+            .insertBefore(this.endNote.group);
+
+        //this.line.addClass('gliss-line')
+        // add tooltip
+        /* this.line.element("title")
+            .words("Shift+Drag to adjust easing") */
+        addTooltip(this.line.node, "Shift+Drag to adjust easing")
+
         editor.assignMouseHandler(this, this.line, "gliss_line")
     }
     updateGraphics() {
@@ -76,6 +91,22 @@ export default class SeqGliss {
     redrawPosition() {
         this.line.plot(simpleBezierPath(
                 {x: this.startNote.xEnd, y: this.startNote.y + editor.zoomY / 2}, 
-                {x: this.endNote.x, y: this.endNote.y + editor.zoomY / 2}, 'horizontal'))
+                {x: this.endNote.x, y: this.endNote.y + editor.zoomY / 2}, 
+                'horizontal',
+                this.easing))
+    }
+    getFreqCurve() {
+        const glissEasing = bezier(this.easing, 0, 1-this.easing, 1)
+        const glissPoints = []
+        const n = this.duration
+        for (let i = 0; i < n; i++) glissPoints.push(glissEasing(i/(n-1)))
+
+        let f1 = this.startNote.frequency
+        let f2 = this.endNote.frequency
+        let dFreq = f2 - f1
+        let freqCurve = glissPoints
+            .map(n => 2**n - 1) // make exponential (pitch)
+            .map(n => n * dFreq + f1)
+        return freqCurve
     }
 }

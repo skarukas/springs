@@ -1,7 +1,8 @@
 import editor from "./editor.js";
 import { 
     disableMouseEvents, 
-    guessJIInterval 
+    guessJIInterval,
+    addTooltip
 } from "./util.js"
 import SeqEdge from "./SeqEdge.js"
 import style from "./style.js"
@@ -35,19 +36,18 @@ export default class SeqNote {
         return this._pitch;
     }
     set pitch(val) {
-        console.log("changing", this.pitch, "to", val)
+        //console.log("changing", this.pitch, "to", val)
         this._pitch = Math.floor(val.clamp(0, 128));
         this.redrawPosition(0);
     }
+    // range : [-0.5, 0.5)
     set bend(val) {
         let steps = Math.round(Math.abs(val))
-        if (val > 0.5) {
-            console.log(val, "means", steps, val - steps)
+        if (val >= 0.5) {
             this.pitch += steps
             this._bend = val - steps;
         } else if (val < -0.5) {
-            console.log(val, "means", -steps, val + steps)
-            this.pitch -= steps
+            this.pitch += -steps
             this._bend = val + steps;
         } else {
             this._bend = val;
@@ -261,6 +261,11 @@ export default class SeqNote {
             .opacity(0.3)
             .fill('black')
 
+        addTooltip(this.handle.node, "Drag to attach notes by an interval")
+        addTooltip(this.rect.node, "Shift+Drag to adjust pitch bend")
+        addTooltip(this.resizeRight.node, "Drag to resize; Shift+Drag to create a gliss")
+        addTooltip(this.indicator.node, "Drag to resize")
+        
         this.group = canvas.group();
         this.rect.addTo(this.group);
         this.handle.addTo(this.group);
@@ -371,7 +376,7 @@ export default class SeqNote {
     }
     // offset all children by this bend amount
     propagateBend(bend=this.bend, animateDuration = 300, awayFrom=[]) {
-        console.log("started at", this.pitch)
+        //console.log("started at", this.pitch)
         this.bend = bend;
 
         this.BFS({
@@ -381,9 +386,8 @@ export default class SeqNote {
             combine: (edge, child, bend) => {
                 let edgeBend = (edge.maxNote == child)? edge.getBend() : -edge.getBend()
                 let newBend = edgeBend + bend
-                console.log("got to", child.pitch)
                 child.bend = newBend;
-                return [newBend];
+                return [child.bend];
             }
         });
     }

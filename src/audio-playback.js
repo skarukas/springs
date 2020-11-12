@@ -82,9 +82,11 @@ const audio = {
         let a = this.context.createOscillator()
         let oscGain = this.context.createGain()
         a.frequency.value = gliss.startNote.frequency
-        a.frequency.linearRampToValueAtTime(
-            gliss.endNote.frequency, 
-            this.now + relativeEnd)
+        a.frequency.setValueCurveAtTime(
+            gliss.getFreqCurve(),
+            this.now + relativeStart,
+            end-start
+        )
         a.type = 'sawtooth'
 
         let crossFadeDur = 0.1
