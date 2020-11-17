@@ -6,14 +6,26 @@
     <title>springs</title>
     <link rel="icon" type="image/png" href="assets/springs_icon.png"/>
     
+    <!-- jQuery[UI].js -->
     <link rel="stylesheet" href="src/include/jqUI/jquery-ui.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/jquery-contextmenu/2.7.1/jquery.contextMenu.min.css">
     <link rel="stylesheet" href="style.css">
     <script src="src/include/jqUI/external/jquery/jquery.js"></script>
     <script src="src/include/jqUI/jquery-ui.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery-contextmenu/2.7.1/jquery.contextMenu.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery-contextmenu/2.7.1/jquery.ui.position.js"></script>
 
-    <!-- <script src="src/include/jquery-3.5.1.js"></script> -->
+    <!-- JZZ.js -->
+    <script src="https://cdn.jsdelivr.net/npm/jzz"></script>
+    <script src="https://cdn.jsdelivr.net/npm/jzz-midi-smf"></script>
+
+    <!-- SVG.js -->
     <script src="https://cdn.jsdelivr.net/npm/@svgdotjs/svg.js@3.0/dist/svg.min.js"></script>
+
+    <!-- tune.js -->
     <script src="src/include/tune.js"></script>
+
+    <!-- Other dependencies: svg-intersections bezier-easing -->
 </head>
 <body>
     <div class="loader-container">
@@ -24,6 +36,8 @@
         <div class="loader"></div>
         <div class="loader"></div>
     </div>
+
+    <!-- Info about key commands -->
     <div class="white-highlight control-screen">
         <div id="controls">
             <h2 style="text-align: center">
@@ -72,7 +86,13 @@
         </div>
     </div>
 
+    <!-- Settings -->
+    <div class="white-highlight setting-screen">
+        Settings
+    </div>
+
     <div id="sequencer">
+        <!-- controls -->
         <div id="controls-container">
             <div class="filename-container">
                 <input value="untitled" maxlength="50" 
@@ -82,7 +102,7 @@
             </div>
             <div class="file-button-container"></div>
         </div>
-
+        <!-- GUI -->
         <div class="seq">
 
             <!-- keyboard -->
@@ -100,7 +120,7 @@
 
             <!-- piano roll -->
             <div class="right-container">
-                <div id="piano-roll"></div>
+                <div id="piano-roll" class="has-contextmenu"></div>
             </div>
         </div>
     </div>
@@ -110,6 +130,8 @@
             app still under development (this is only a demo). please come back later :^)
         </p>
     </div>
+
+    <!-- Global messages for the user -->
     <div class="warn-container"></div>
 
     <script src="springs.js"></script>

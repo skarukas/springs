@@ -91,7 +91,7 @@ body {
     border: 2px solid black;
 }
 
-.control-screen {
+.control-screen, .setting-screen {
     width: 100vw;
     height: 100vh;
     position: fixed;
@@ -142,7 +142,7 @@ body {
 
 .icon-button {
     opacity: 0.5;
-    background: none;
+    background: none; 
     border: none;
 }
 
@@ -157,6 +157,14 @@ body {
     top: 50%;
     z-index: 99;
     left: calc(50% - 50px);
+}
+
+
+.mouse-disabled {
+    pointer-events: none;
+    user-select: none;
+    -moz-user-select: none;
+    -webkit-user-select: none;
 }
 
 .loader {

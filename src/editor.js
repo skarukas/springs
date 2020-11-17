@@ -1,3 +1,10 @@
+/**
+ * editor.js
+ * 
+ * The controller for the piano-roll editor. 
+ * Most actions are passed through it at some point
+ */
+
 import keyboard from "./keyboard.js";
 import SeqNote from "./SeqNote.js";
 import SeqEdge from "./SeqEdge.js";
@@ -9,7 +16,6 @@ import handlers from "./handlers.js"
 import { 
     pitchName, 
     addMessage, 
-    disableMouseEvents,
     simpleBezierPath, 
     parseIntervalText,
     rulerPath
@@ -155,7 +161,8 @@ editor.draw = function() {
         }
         editor.mousePosn = {x: e.x, y:e.y}
     }).mousedown(e => {
-        
+        // just in case you delete an object while its tooltip is showing
+        $(".ui-tooltip").fadeOut(function() { this.remove() })
         editor.clickStart = editor.canvas.point(e.x, e.y)
         if (!editor.action) {
             if (e.metaKey) {
@@ -243,14 +250,13 @@ editor.draw = function() {
         .path()
         .stroke(style.editorLine)
         .hide()
-        .fill('none');
-    disableMouseEvents(editor.seqConnector);
+        .fill('none')
+        .addClass("mouse-disabled")
     editor.seqText = editor.canvas
         .text("")
         .font(style.editorText)
-        .hide();
-    // pass through mouse events
-    disableMouseEvents(editor.seqText);
+        .hide()
+        .addClass("mouse-disabled")
 }
 
 editor.copySelection = function() {
@@ -504,7 +510,7 @@ editor.clearAllData = mutator(function() {
     editor.delete(null, ...editor.objects)
 }, "clearAllData")
 
-editor.addCompressedData = mutator(function(compressed, offsetTime=0, offsetPitch=0) {
+editor.addCompressedData = mutator(function(compressed, atTime=0, atPitch=0) {
 
     let notes = [];
     let edges = [];
@@ -513,9 +519,9 @@ editor.addCompressedData = mutator(function(compressed, offsetTime=0, offsetPitc
     /* Add notes from compressed version */
     for (let noteObj of compressed.notes) {
         let note = editor.addNote(
-            noteObj.pitch + offsetPitch, 
+            noteObj.pitch + atPitch, 
             noteObj.velocity,
-            noteObj.start + offsetTime,
+            noteObj.start + atTime,
             noteObj.duration)
         note.bend = noteObj.bend;
         notes.push(note)
@@ -567,7 +573,8 @@ editor.transposeByOctaves = mutator(function(n, ...objs) {
 }, "transpose")
 
 editor.paste = mutator(function() {
-
+    if (!editor.clipboard?.notes?.length) return
+    
     let p = editor.mousePosn;
     let time = editor.mousePosnToTime(p)
     let pitch = editor.mousePosnToPitch(p)
@@ -786,6 +793,10 @@ editor.connect = mutator(function(note1, note2, by) {
         editor.edges.push(edge)
         edge.draw(editor.canvas);
         editor.toggleObjectInSelection(edge)
+
+        // update HMM
+        let pitchClass = Math.round(edge.maxNote.soundingPitch - edge.minNote.soundingPitch)
+        model.recordState(pitchClass, edge.interval)
     } else {
         addMessage('Cannot connect notes that are already connected.', 'orange')
     }
@@ -813,15 +824,6 @@ editor.measure = function(start, end) {
 
 
 editor.getAllConnected = function(notes) {
-    /* let forest = new Set()
-    for (let note of notes) {
-        if (!forest.has(note)) {
-            let tree = note.getAllConnected()
-            for (let e of tree) forest.add(e)
-        }
-    }
-    return [...forest] */
-    
     return editor.getComponents(notes).flat()
 }
 
@@ -929,7 +931,7 @@ editor.tuneAsPartials = mutator(function(_, ...objs) {
         notes.sort((a, b) => a.pitch - b.pitch)
 
 
-        //// Only for HMM demo::
+        //// Only for HMM demo:
         let intervalClasses = Array(notes.length-1)
         for (let i = 0; i < notes.length-1; i++) {
             intervalClasses[i] = Math.round(notes[i+1].soundingPitch - notes[i].soundingPitch)
@@ -1090,8 +1092,10 @@ editor.typeEdit = function(_, ...objs) {
         }).hide().fadeIn(fadeDur)
         .appendTo(foreign.node)
 
+    const intervalText = 'Enter the new interval as a frequency ratio or equal-tempered value, e.g. "5:4" or "3.86#12" (3.86 steps in 12TET).'
+    const velocityText = 'Enter the new velocity as an integer from 0-127.'
     let instructions = $(document.createElement('p'))
-        .text('Enter interval as cents, equal-tempered value, or frequency ratio, e.g. "386c", "4#12", or "5:4".')
+        .text(intervalText)
         .css({
             position: 'absolute',
             textAlign: 'center',
@@ -1116,7 +1120,9 @@ editor.typeEdit = function(_, ...objs) {
                     ed.val(box.val())
                     ed.attr('size', Math.max(box.val().length, 5))
                 }
-            }).hide()
+            })
+            .hide()
+            .on('focus', () => instructions.text(intervalText))
         if (!notes.length) box.fadeIn(fadeDur).trigger('focus')
         edgeBoxes.push(box)
     }
@@ -1131,7 +1137,9 @@ editor.typeEdit = function(_, ...objs) {
                     n.css('border-color', color)
                     n.val(box.val())
                 }
-            }).hide()
+            })
+            .hide()
+            .on('focus', () => instructions.text(velocityText))
             .fadeIn(fadeDur)
             .trigger('focus')
 
@@ -1160,6 +1168,8 @@ function createEdgeInputBox(edge) {
             if (interval) {
                 edge.interval = interval
                 edge.minNote.propagateBend(0)
+
+                // update HMM
                 let pitchClass = Math.round(edge.maxNote.soundingPitch - edge.minNote.soundingPitch)
                 model.recordState(pitchClass, interval)
             }
@@ -1174,10 +1184,7 @@ function createNoteInputBox(note) {
             size: 3,
             maxlength: 3,
             placeholder: note.velocity
-        })/* .on('input', ø => {
-            if (velocityInput.val()) velocityInput.css('border-color', 'green')
-            else velocityInput.css('border-color', 'red')
-        }) */.on('mousedown', e => {
+        }).on('mousedown', e => {
             e.stopPropagation()
         }).on('submit', ø => {
             note.velocity = parseInt(velocityInput.val()) || note.velocity;
@@ -1216,7 +1223,15 @@ editor.zoom = function(xZoom, yZoom) {
     editor.scale(editor.zoomXY)
 }
 
-
+/**
+ * Assign handler `type` to mouse events caught by `svgNode`.
+ * `parent` is passed to the handlers to be modified by
+ * the mouse event.
+ * 
+ * @param { SeqNote | SeqEdge | SeqGliss } parent The object to modify
+ * @param { SVG.Element } svgNode 
+ * @param { string } type   One of the types in handlers.js
+ */
 editor.assignMouseHandler = function(parent, svgNode, type) {
     let handler = handlers[type];
     if (handler.entered) svgNode.mouseover(e => handler.entered(e, parent));
@@ -1224,7 +1239,7 @@ editor.assignMouseHandler = function(parent, svgNode, type) {
     if (handler.clicked) svgNode.mousedown(e => handler.clicked(e, parent));
     if (handler.hovered) svgNode.mousemove(e => handler.hovered(e, parent));
     
-    if (handler.doubleClick) $(svgNode.node).on('dblclick', e => handler.doubleClick(e, parent))
+    if (handler.doubleClicked) $(svgNode.node).on('dblclick', e => handler.doubleClicked(e, parent))
 }
 
 

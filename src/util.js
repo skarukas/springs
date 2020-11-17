@@ -2,23 +2,25 @@ Number.prototype.clamp = function(lo, hi) {
     return Math.max(lo, Math.min(this, hi))
 }
 
-export function disableMouseEvents(svgElement) {
-    svgElement.css({'pointer-events':'none','user-select': 'none'})
-}
-
-export function mousePosn(e) {
-    return {
-        x: e.offsetX,
-        y: e.offsetY
-    }
-}
-
+/**
+ * Add a graphical tooltip to the given 
+ * element (either a jQuery object, svg element, DOM node, or selector)
+ */
 export function addTooltip(elem, text) {
     $(elem).attr("title", text).addClass("has-tooltip")
 }
 
+/**
+ * Create a cubic bezier path between two 
+ * points, returned as a string.
+ * 
+ * @param { {x: number, y: number} } start The start position
+ * @param { {x: number, y: number} } end The end position
+ * @param { "horizontal" | "vertical" } orientation 
+ * @param { number } easingFactor How "curvy" to make the path
+ */
 export function simpleBezierPath(start, end, orientation, easingFactor=0.25) {
-    // 0.01 is added b/c beziers can't be completely straight
+    // 0.01 is added b/c beziers disappear when they're completely straight
     if (orientation == 'vertical') {
         let ctrlPtOffset = (end.y - start.y) * easingFactor;
         return`M ${start.x} ${start.y} 
@@ -34,6 +36,7 @@ export function simpleBezierPath(start, end, orientation, easingFactor=0.25) {
     }
 }
 
+/** Return the "ruler" tool's bracket-like path, as a string. */
 export function rulerPath(start, end) {
     return `M ${start.x} ${start.y} L ${end.x} ${end.y}
             M ${start.x - 5} ${start.y} L ${start.x + 5} ${start.y}
@@ -61,6 +64,9 @@ const fiveLimitScale = [
     tune.FreqRatio(15, 8)
 ];
 
+/** Return a JI adjustment of the 
+ * interval between two MIDI numbers, `lo` and `hi`.
+ * */
 export function guessJIInterval(lo, hi) {
     if (lo > hi) [hi, lo] = [lo, hi]
         
@@ -72,6 +78,7 @@ export function guessJIInterval(lo, hi) {
     return interval.add(tune.ETInterval.octave.multiply(octaves));
 }
 
+/** Display a message to the user with a certain `color`. */
 export function addMessage(text, color='black') {
     let a = $(document.createElement('p'))
         .text(text)
@@ -81,12 +88,7 @@ export function addMessage(text, color='black') {
     a.delay(1000).fadeOut(2000, () => a.remove())
 }
 
-export function addButton(text, parent=$('#controls-container')) {
-    return $(document.createElement('button'))
-        .text(text)
-        .appendTo(parent)
-}
-
+/** Get the pitch name of a MIDI pitch, optionally including the octave number. */
 export function pitchName(pitch, includeOctave=false) {
     const pitchNames = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
     let result = pitchNames[tune.Util.mod(Math.round(pitch),12)]
@@ -94,11 +96,17 @@ export function pitchName(pitch, includeOctave=false) {
     return result
 }
 
+/** Turn a string into an interval.
+ * 
+ *  Valid formats of `text`:
+ *   - `"n#d"` = `tune.ETInterval(n, d)`
+ *   - `"n:d"` = `tune.FreqRatio(n, d)`
+ *   - `"n c"` = `tune.Cents(n)` **NOT YET SUPPORTED
+*/
 export function parseIntervalText(text) {
     let ratioPattern = /^(?<num>[\d\.]+)\s?[:/]\s?(?<den>[\d\.]+)\s*$/
     let etPattern = /^(?<num>-?[\d\.]+)\s?#\s?(?<den>[\d\.]+)\s*$/
-    let centPatttern = /^(?<cents>-?[\d\.]+)\s*c$/
-
+    let centPattern = /^(?<cents>-?[\d\.]+)\s*c$/
 
     if (ratioPattern.test(text)) {
         let g = ratioPattern.exec(text).groups
@@ -106,9 +114,10 @@ export function parseIntervalText(text) {
     } else if (etPattern.test(text)) {
         let g = etPattern.exec(text).groups
         return tune.ETInterval(parseFloat(g.num), parseFloat(g.den))
-    } else if (centPatttern.test(text)) {
-        let cents = centPatttern.exec(text).groups.cents
-        return cents
+    } else if (centPattern.test(text)) {
+        // cents not yet supported
+        let cents = centPattern.exec(text).groups.cents
+        return false
     }
     return false
 }

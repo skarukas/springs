@@ -1,14 +1,11 @@
-import {disableMouseEvents} from "./util.js"
 import editor from "./editor.js"
 import playback from "./playbackData.js"
 import style from "./style.js"
 
-//const rulerHeight = 20;
-//const rulerSVG = SVG().addTo('#ruler').size(editor.zoomX * editor.width, rulerHeight);
-
 const ruler = {
     height: 20,
     scaleVal: 1,
+    /** Create SVG ruler. Only called once. */
     draw() {
         ruler.canvas = SVG()
             .addTo('#ruler')
@@ -20,7 +17,8 @@ const ruler = {
                 editor.deselectAllObjects()
             });
         this.svg = this.canvas
-
+        
+        /* Draw tick mark and measure number */
         ruler.ticks = Array(editor.widthInTime).fill(0).map((_, i) => {
             if (i % 16 == 0) {
                 let g = ruler.canvas.group();
@@ -29,24 +27,26 @@ const ruler = {
                     .stroke('black');
                 let measureNumber = g.text("" + Math.ceil((i+1) / 16))
                     .font(style.editorText)
-                    .center((i+1) * editor.zoomX, 10);
-                disableMouseEvents(measureNumber);
+                    .center((i+1) * editor.zoomX, 10)
+                    .addClass("mouse-disabled")
                 return g;
             }
         });
-        ruler.barNumbers = null
     },
+    /** Adjust the ruler to a new aspect ratio. */
     zoom(zoomX, zoomY) {
         for (let i = 0; i < ruler.ticks.length; i++) {
             ruler.ticks[i]?.move(i * zoomX, 0);
         }
     },
+    /** Scale the ruler, preserving aspect ratio. */
     scale(val) {
         for (let i = 0; i < ruler.ticks.length; i++) {
             ruler.ticks[i]?.move(i * val * editor.zoomX, 0);
         }
         this.scaleVal = val
     }, 
+    /** Scroll to specific coordinates. */
     scroll(x, y) {
         let $ruler = $('.ruler-container')
         $ruler.css('overflow', 'scroll');

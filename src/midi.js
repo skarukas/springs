@@ -1,11 +1,53 @@
-import { pitchName, addMessage } from "./util.js"
+import { pitchName } from "./util.js"
 import userPreferences from "./userPreferences.js"
-
-const JZZ = require('jzz');
-require('jzz-midi-smf')(JZZ);
+import keyboard from "./keyboard.js";
 const MIDI = JZZ.MIDI
 
 const midi = {
+    /** The input MIDI device. */
+    port: undefined,
+    /**
+     * @async 
+     * Return a `Promise` that 
+     * resolves with an array of 
+     * connected MIDI input devices. 
+     * */
+    getInputDevices() {
+        return new Promise((resolve, reject) => {
+            JZZ({sysex: true}).and(function() {
+                resolve(this.info().inputs)
+            })
+        })
+    },
+    /**
+     * Change the input MIDI device. The input
+     * should be the name of the device or an element of
+     * the array returned by `this.getInputDevices()`
+     */
+    setInputDevice(device) {
+        this.port?.close()
+        this.port = JZZ().openMidiIn(device)
+        this.port.connect(midi.handleInputMessage)
+    },
+    /** Perform the action encoded in a MIDI message. */
+    handleInputMessage(mid) {
+        if (mid.isNoteOn()) {
+            let pitch = mid.getNote()
+            let velocity = mid.getVelocity()
+            keyboard.noteOn(pitch, velocity)
+        } else if (mid.isNoteOff()) {
+            let pitch = mid.getNote()
+            keyboard.noteOff(pitch)
+        }
+    },
+    /**
+     * Write the selected notes to a MIDI file.
+     * 
+     * @param { SeqNote[] } notes 
+     * @param { string } fileName 
+     * @param { {releaseTime: number } } options 
+     * An object with preferences for the export.
+     */
     writeToFile(notes, fileName, options) {
         // Construct multitrack midi data
         let smf = MIDI.SMF()
@@ -13,7 +55,7 @@ const midi = {
         for (let i = 0; i < tracks.length; i++) {
             let mtrk = MIDI.SMF.MTrk()
             smf.push(mtrk)
-            tracks[i].forEach(note => addNoteToTrack(note, mtrk))
+            tracks[i].forEach(note => this.addNoteToTrack(note, mtrk))
         }
 
         // Create and download .mid file
@@ -25,6 +67,7 @@ const midi = {
         a.download = (fileName || "untitled") + ".mid";
         a.click();
     },
+    /** Partition `notes` into a number of arrays without pitch bend conflict. */
     partitionIntoTracks(notes, options={}) {
         options.releaseTime = options.releaseTime || 0;
 
@@ -48,7 +91,22 @@ const midi = {
     
         return tracks;
     },
-   readFromFile(file) {
+    /** Convert the note to MIDI and add all necessary events. */
+    addNoteToTrack(note, track) {
+        let tick = note.start * 32
+        let endTick = note.end * 32
+        let pitch = pitchName(note.pitch, true)
+        let velocity = note.velocity
+        let bend = scale14bits(note.bend / userPreferences.pitchBendWidth)
+        track.add(tick, MIDI.noteOn(0, pitch, velocity))
+            .add(tick, MIDI.pitchBend(0, bend))
+            .add(endTick, MIDI.noteOff(0, pitch))
+    },
+    /** 
+     * @async
+     * Read a MIDI file and return an array of `SeqNote`s.
+     * */
+    readFromFile(file) {
         return new Promise((resolve, reject) => {
             if (!file) return reject()
 
@@ -107,17 +165,6 @@ const midi = {
 }
 
 export default midi 
-
-function addNoteToTrack(note, track) {
-    let tick = note.start * 32
-    let endTick = note.end * 32
-    let pitch = pitchName(note.pitch, true)
-    let velocity = note.velocity
-    let bend = scale14bits(note.bend / userPreferences.pitchBendWidth)
-    track.add(tick, MIDI.noteOn(0, pitch, velocity))
-        .add(tick, MIDI.pitchBend(0, bend))
-        .add(endTick, MIDI.noteOff(0, pitch))
-}
 
 // scale from [-1, 1) to [0, 16384)
 const scale14bits = (val) => {

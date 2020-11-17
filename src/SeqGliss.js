@@ -48,8 +48,6 @@ export default class SeqGliss {
         this.canvas = canvas
         let color, width;
         if (this.startNote.xEnd >= this.endNote.x) {
-            /* color = 'red'
-            width = 2 */
             throw "Forbidden gliss."
         } else {
             this.gradient = this.canvas.gradient('linear', add => {
@@ -70,11 +68,7 @@ export default class SeqGliss {
             .insertBefore(this.startNote.group)
             .insertBefore(this.endNote.group);
 
-        //this.line.addClass('gliss-line')
-        // add tooltip
-        /* this.line.element("title")
-            .words("Shift+Drag to adjust easing") */
-        addTooltip(this.line.node, "Shift+Drag to adjust easing")
+        addTooltip(this.line.node, "Drag to adjust easing")
 
         editor.assignMouseHandler(this, this.line, "gliss_line")
     }
@@ -107,6 +101,6 @@ export default class SeqGliss {
         let freqCurve = glissPoints
             .map(n => 2**n - 1) // make exponential (pitch)
             .map(n => n * dFreq + f1)
-        return freqCurve
+        return new Float32Array(freqCurve)
     }
 }

@@ -1,85 +1,6 @@
 (function () {
     'use strict';
 
-    Number.prototype.clamp = function (lo, hi) {
-      return Math.max(lo, Math.min(this, hi));
-    };
-
-    function disableMouseEvents(svgElement) {
-      svgElement.css({
-        'pointer-events': 'none',
-        'user-select': 'none'
-      });
-    }
-    function addTooltip(elem, text) {
-      $(elem).attr("title", text).addClass("has-tooltip");
-    }
-    function simpleBezierPath(start, end, orientation, easingFactor = 0.25) {
-      // 0.01 is added b/c beziers can't be completely straight
-      if (orientation == 'vertical') {
-        let ctrlPtOffset = (end.y - start.y) * easingFactor;
-        return `M ${start.x} ${start.y} 
-               C ${start.x + .01} ${start.y + ctrlPtOffset}
-                 ${end.x + .01} ${end.y - ctrlPtOffset} 
-                 ${end.x} ${end.y}`;
-      } else {
-        let ctrlPtOffset = (end.x - start.x) * easingFactor;
-        return `M ${start.x} ${start.y} 
-                C ${start.x + ctrlPtOffset} ${start.y + .01}
-                  ${end.x - ctrlPtOffset} ${end.y + .01} 
-                  ${end.x} ${end.y}`;
-      }
-    }
-    function rulerPath(start, end) {
-      return `M ${start.x} ${start.y} L ${end.x} ${end.y}
-            M ${start.x - 5} ${start.y} L ${start.x + 5} ${start.y}
-            M ${end.x - 5} ${end.y} L ${end.x + 5} ${end.y}`;
-    }
-    function normAscendingInterval(interval) {
-      /* if (interval.cents() < 0) interval = interval.inverse(); */
-      return interval.normalized();
-    } // quick-and dirty default 5 limit intervals
-
-    const fiveLimitScale = [tune.FreqRatio(1, 1), tune.FreqRatio(16, 15), tune.FreqRatio(9, 8), tune.FreqRatio(6, 5), tune.FreqRatio(5, 4), tune.FreqRatio(4, 3), tune.FreqRatio(45, 32), tune.FreqRatio(3, 2), tune.FreqRatio(8, 5), tune.FreqRatio(5, 3), tune.FreqRatio(16, 9), tune.FreqRatio(15, 8)];
-    function guessJIInterval(lo, hi) {
-      if (lo > hi) [hi, lo] = [lo, hi];
-      let idx = ((hi - lo) % 12 + 12) % 12;
-      let octaves = Math.floor((hi - lo) / 12);
-      let ji = fiveLimitScale[idx];
-      let interval = ji;
-      return interval.add(tune.ETInterval.octave.multiply(octaves));
-    }
-    function addMessage(text, color = 'black') {
-      let a = $(document.createElement('p')).text(text).addClass('warning').css({
-        color
-      }).appendTo($('.warn-container'));
-      a.delay(1000).fadeOut(2000, () => a.remove());
-    }
-    function pitchName(pitch, includeOctave = false) {
-      const pitchNames = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
-      let result = pitchNames[tune.Util.mod(Math.round(pitch), 12)];
-      if (includeOctave) result += Math.floor(pitch / 12);
-      return result;
-    }
-    function parseIntervalText(text) {
-      let ratioPattern = /^(?<num>[\d\.]+)\s?[:/]\s?(?<den>[\d\.]+)\s*$/;
-      let etPattern = /^(?<num>-?[\d\.]+)\s?#\s?(?<den>[\d\.]+)\s*$/;
-      let centPatttern = /^(?<cents>-?[\d\.]+)\s*c$/;
-
-      if (ratioPattern.test(text)) {
-        let g = ratioPattern.exec(text).groups;
-        return tune.FreqRatio(parseFloat(g.num), parseFloat(g.den));
-      } else if (etPattern.test(text)) {
-        let g = etPattern.exec(text).groups;
-        return tune.ETInterval(parseFloat(g.num), parseFloat(g.den));
-      } else if (centPatttern.test(text)) {
-        let cents = centPatttern.exec(text).groups.cents;
-        return cents;
-      }
-
-      return false;
-    }
-
     const style = {};
     style.lightGrey = "rgb(240, 240, 240)";
     style.grey = "rgb(220, 220, 220)";
@@ -135,12 +56,11 @@
     style.noteShadowStroke = 'rgb(60, 60, 60)';
     style.strokeSelected = 'red';
 
-    //const rulerSVG = SVG().addTo('#ruler').size(editor.zoomX * editor.width, rulerHeight);
-
     const ruler = {
       height: 20,
       scaleVal: 1,
 
+      /** Create SVG ruler. Only called once. */
       draw() {
         ruler.canvas = SVG().addTo('#ruler').size(editor$1.width, ruler.height).mousemove(e => {
           if (!playback.playing && e.buttons == 1) playback.position = editor$1.canvas.point(e.x, e.y).x;
@@ -149,26 +69,28 @@
           editor$1.deselectAllObjects();
         });
         this.svg = this.canvas;
+        /* Draw tick mark and measure number */
+
         ruler.ticks = Array(editor$1.widthInTime).fill(0).map((_, i) => {
           if (i % 16 == 0) {
             let g = ruler.canvas.group();
             g.line(i * editor$1.zoomX, 0, i * editor$1.zoomX, 20).stroke({
               width: 1
             }).stroke('black');
-            let measureNumber = g.text("" + Math.ceil((i + 1) / 16)).font(style.editorText).center((i + 1) * editor$1.zoomX, 10);
-            disableMouseEvents(measureNumber);
+            let measureNumber = g.text("" + Math.ceil((i + 1) / 16)).font(style.editorText).center((i + 1) * editor$1.zoomX, 10).addClass("mouse-disabled");
             return g;
           }
         });
-        ruler.barNumbers = null;
       },
 
+      /** Adjust the ruler to a new aspect ratio. */
       zoom(zoomX, zoomY) {
         for (let i = 0; i < ruler.ticks.length; i++) {
           ruler.ticks[i]?.move(i * zoomX, 0);
         }
       },
 
+      /** Scale the ruler, preserving aspect ratio. */
       scale(val) {
         for (let i = 0; i < ruler.ticks.length; i++) {
           ruler.ticks[i]?.move(i * val * editor$1.zoomX, 0);
@@ -177,6 +99,7 @@
         this.scaleVal = val;
       },
 
+      /** Scroll to specific coordinates. */
       scroll(x, y) {
         let $ruler = $('.ruler-container');
         $ruler.css('overflow', 'scroll');
@@ -185,6 +108,11 @@
       }
 
     };
+
+    /**
+     * Handles playback display and data,
+     * doesn't interact with the WebAudio API
+     */
 
     const playback = {
       draw() {
@@ -222,6 +150,7 @@
         return playback.intervalIndex != -1;
       },
 
+      /* Play from the current position of the playback line or a specified point */
       play(startPosition = playback.position) {
         let start = Date.now();
         playback.pause();
@@ -236,19 +165,18 @@
           let deltaMs = now - start;
           let measureCount = deltaMs / measureLengthMs;
           let posn = startPosition + measureWidth * measureCount;
-          let screenPosn = Math.max(posn - 100, 0) * this.scaleVal; //$scroller.get()[0].scroll(screenPosn, $scroller.scrollTop());
-          //$ruler.get()[0].scroll(screenPosn, $ruler.scrollTop());
-
           playback.position = posn;
           if (posn >= editor$1.width) playback.stop();
         }, 1000 / fps);
       },
 
+      /* Pause playback */
       pause() {
         clearInterval(playback.intervalIndex);
         playback.intervalIndex = -1;
       },
 
+      /* Stop playback */
       stop() {
         playback.pause();
         playback.position = 0;
@@ -256,29 +184,146 @@
         playback.carrot.hide();
       },
 
+      /* Convert the number of ticks to seconds */
       MIDITimeToSeconds(ticks) {
         return 60 * ticks / (this.bpm * this.ticksPerBeat);
       }
 
     };
 
-    /* Try to remove playback as a dependency */
+    Number.prototype.clamp = function (lo, hi) {
+      return Math.max(lo, Math.min(this, hi));
+    };
+    /**
+     * Add a graphical tooltip to the given 
+     * element (either a jQuery object, svg element, DOM node, or selector)
+     */
+
+
+    function addTooltip(elem, text) {
+      $(elem).attr("title", text).addClass("has-tooltip");
+    }
+    /**
+     * Create a cubic bezier path between two 
+     * points, returned as a string.
+     * 
+     * @param { {x: number, y: number} } start The start position
+     * @param { {x: number, y: number} } end The end position
+     * @param { "horizontal" | "vertical" } orientation 
+     * @param { number } easingFactor How "curvy" to make the path
+     */
+
+    function simpleBezierPath(start, end, orientation, easingFactor = 0.25) {
+      // 0.01 is added b/c beziers disappear when they're completely straight
+      if (orientation == 'vertical') {
+        let ctrlPtOffset = (end.y - start.y) * easingFactor;
+        return `M ${start.x} ${start.y} 
+               C ${start.x + .01} ${start.y + ctrlPtOffset}
+                 ${end.x + .01} ${end.y - ctrlPtOffset} 
+                 ${end.x} ${end.y}`;
+      } else {
+        let ctrlPtOffset = (end.x - start.x) * easingFactor;
+        return `M ${start.x} ${start.y} 
+                C ${start.x + ctrlPtOffset} ${start.y + .01}
+                  ${end.x - ctrlPtOffset} ${end.y + .01} 
+                  ${end.x} ${end.y}`;
+      }
+    }
+    /** Return the "ruler" tool's bracket-like path, as a string. */
+
+    function rulerPath(start, end) {
+      return `M ${start.x} ${start.y} L ${end.x} ${end.y}
+            M ${start.x - 5} ${start.y} L ${start.x + 5} ${start.y}
+            M ${end.x - 5} ${end.y} L ${end.x + 5} ${end.y}`;
+    }
+    function normAscendingInterval(interval) {
+      /* if (interval.cents() < 0) interval = interval.inverse(); */
+      return interval.normalized();
+    } // quick-and dirty default 5 limit intervals
+
+    const fiveLimitScale = [tune.FreqRatio(1, 1), tune.FreqRatio(16, 15), tune.FreqRatio(9, 8), tune.FreqRatio(6, 5), tune.FreqRatio(5, 4), tune.FreqRatio(4, 3), tune.FreqRatio(45, 32), tune.FreqRatio(3, 2), tune.FreqRatio(8, 5), tune.FreqRatio(5, 3), tune.FreqRatio(16, 9), tune.FreqRatio(15, 8)];
+    /** Return a JI adjustment of the 
+     * interval between two MIDI numbers, `lo` and `hi`.
+     * */
+
+    function guessJIInterval(lo, hi) {
+      if (lo > hi) [hi, lo] = [lo, hi];
+      let idx = ((hi - lo) % 12 + 12) % 12;
+      let octaves = Math.floor((hi - lo) / 12);
+      let ji = fiveLimitScale[idx];
+      let interval = ji;
+      return interval.add(tune.ETInterval.octave.multiply(octaves));
+    }
+    /** Display a message to the user with a certain `color`. */
+
+    function addMessage(text, color = 'black') {
+      let a = $(document.createElement('p')).text(text).addClass('warning').css({
+        color
+      }).appendTo($('.warn-container'));
+      a.delay(1000).fadeOut(2000, () => a.remove());
+    }
+    /** Get the pitch name of a MIDI pitch, optionally including the octave number. */
+
+    function pitchName(pitch, includeOctave = false) {
+      const pitchNames = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+      let result = pitchNames[tune.Util.mod(Math.round(pitch), 12)];
+      if (includeOctave) result += Math.floor(pitch / 12);
+      return result;
+    }
+    /** Turn a string into an interval.
+     * 
+     *  Valid formats of `text`:
+     *   - `"n#d"` = `tune.ETInterval(n, d)`
+     *   - `"n:d"` = `tune.FreqRatio(n, d)`
+     *   - `"n c"` = `tune.Cents(n)` **NOT YET SUPPORTED
+    */
+
+    function parseIntervalText(text) {
+      let ratioPattern = /^(?<num>[\d\.]+)\s?[:/]\s?(?<den>[\d\.]+)\s*$/;
+      let etPattern = /^(?<num>-?[\d\.]+)\s?#\s?(?<den>[\d\.]+)\s*$/;
+      let centPattern = /^(?<cents>-?[\d\.]+)\s*c$/;
+
+      if (ratioPattern.test(text)) {
+        let g = ratioPattern.exec(text).groups;
+        return tune.FreqRatio(parseFloat(g.num), parseFloat(g.den));
+      } else if (etPattern.test(text)) {
+        let g = etPattern.exec(text).groups;
+        return tune.ETInterval(parseFloat(g.num), parseFloat(g.den));
+      } else if (centPattern.test(text)) {
+        // cents not yet supported
+        let cents = centPattern.exec(text).groups.cents;
+        return false;
+      }
+
+      return false;
+    }
+
+    /**
+     * Namespace for functions interacting with the WebAudio API
+     */
 
     const audio = {
       notes: Array(128),
+      // map of midi notes -> osc
       playingNotes: new Set(),
 
+      // all oscillators
       initAudio() {
-        this.context = new (window.AudioContext || window.webkitAudioContext)();
-        this.gainNode = this.context.createGain();
-        this.gainNode.gain.setValueAtTime(0.2, this.context.currentTime);
-        this.gainNode.connect(this.context.destination); // connect to output
+        if (window.AudioContext || window.webkitAudioContext) {
+          this.context = new (window.AudioContext || window.webkitAudioContext)();
+          this.gainNode = this.context.createGain();
+          this.gainNode.gain.setValueAtTime(0.2, this.context.currentTime);
+          this.gainNode.connect(this.context.destination); // connect to output
+        } else {
+          addMessage("Unable to play audio. This browser does not support the WebAudio API.");
+        }
       },
 
       get now() {
         return this.context.currentTime;
       },
 
+      /* Reset playback data */
       pause() {
         for (let [n, g] of this.playingNotes) {
           g.gain.value = 0;
@@ -314,13 +359,14 @@
 
         oscGain.gain.linearRampToValueAtTime(0.01, this.now + relativeEnd + crossFadeDur);
         a.connect(oscGain).connect(this.gainNode);
-        this.playingNotes.add([a, oscGain]); //if (note.glissInputs.length) return //don't need to play
+        this.playingNotes.add([a, oscGain]);
 
         for (let gliss of note.glissOutputs) {
           this.playGliss(gliss, end, playback.MIDITimeToSeconds(gliss.endNote.start));
         }
       },
 
+      /* Play back a gliss starting at a certain time */
       playGliss(gliss, start = 0, end = 2.0) {
         let time = playback.position / editor.zoomX;
         let offset = playback.MIDITimeToSeconds(time);
@@ -331,7 +377,8 @@
         let relativeEndVelocity = 1 / gliss.endNote.glissInputs.length ** 0.5;
         if (!this.context) this.initAudio();
         let a = this.context.createOscillator();
-        let oscGain = this.context.createGain();
+        let oscGain = this.context.createGain(); // use provided easing
+
         a.frequency.value = gliss.startNote.frequency;
         a.frequency.setValueCurveAtTime(gliss.getFreqCurve(), this.now + relativeStart, end - start);
         a.type = 'sawtooth';
@@ -348,13 +395,15 @@
         this.playingNotes.add([a, oscGain]);
       },
 
+      /* Playback a set of notes */
       playNotes(notes) {
         for (let note of notes) {
           this.playNote(note, playback.MIDITimeToSeconds(note.start), playback.MIDITimeToSeconds(note.end));
         }
       },
 
-      noteOn(pitch) {
+      /* Start a note playing */
+      noteOn(pitch, velocity = 60) {
         if (this.notes[pitch]) return;
         if (!this.context) this.initAudio();
         let a = this.context.createOscillator();
@@ -362,11 +411,12 @@
         a.frequency.value = tune.Util.ETToFreq(pitch);
         a.type = 'sawtooth';
         a.start();
-        oscGain.gain.value = 0.4;
+        oscGain.gain.value = velocity / 127;
         a.connect(oscGain).connect(this.gainNode);
         this.notes[pitch] = a;
       },
 
+      /* End a note playing */
       noteOff(pitch) {
         this.notes[pitch]?.stop(0);
         this.notes[pitch] = undefined;
@@ -375,6 +425,7 @@
     };
 
     const grid = {
+      /** Create the time/pitch grid using HTML Canvas. */
       draw() {
         let div = $(document.createElement('div')).addClass("grid").attr({
           width: editor$1.width,
@@ -398,6 +449,7 @@
           zIndex: 1,
           display: 'block'
         }).appendTo(div).on("mouseup", ø => {
+          // clear selection
           editor$1.selectObject();
         }).text("Grid");
         let ctx = c.get()[0].getContext("2d");
@@ -411,7 +463,7 @@
           }
         }
 
-        ctx.fill(); // draw vertical lines (rects)
+        ctx.fill(); // draw vertical lines / tick marks corresponding to 4/4
 
         ctx.beginPath();
 
@@ -427,15 +479,18 @@
         this.$canvas = c;
       },
 
+      /** Adjust the zoom to the editor's aspect ratio. */
       zoom(xZoom, yZoom) {
         this.$canvas.width(editor$1.width);
         this.$canvas.height(editor$1.height);
       },
 
+      /** Set the zoom/scale amount, preserving aspect ratio. */
       scale(val) {
         this.$canvas.css('zoom', val);
       },
 
+      /** Move the grid to specified coordinates. */
       scroll(x, y) {
         let top = -(y - this.$div.offset().top);
         let left = -(x - style.keyDisplay.width);
@@ -445,6 +500,7 @@
         });
       },
 
+      /** Create a rectangle to display over the grid. */
       highlightPitch(pitch, play = true, options) {
         let rect;
 
@@ -458,8 +514,11 @@
         if (play) rect.show();else rect.hide();
       },
 
+      /** The displayed SVG highlight rectangles. */
       highlightRectangles: []
     };
+
+    /** A key in the displayed sideways keyboard. */
 
     class PianoKey {
       constructor(pitch) {
@@ -503,6 +562,8 @@
       get height() {
         return this.isNatural ? this.whiteKeyHeight : this.whiteKeyHeight * 0.6;
       }
+      /** Redraw the position, size, and text of the graphics. */
+
 
       updateGraphics(animateDuration) {
         if (!this.canvas) return;
@@ -518,6 +579,8 @@
           }
         }
       }
+      /** Draw the key as a rectangle on `canvas`. Only called upon creation. */
+
 
       draw(canvas) {
         this.canvas = canvas;
@@ -533,16 +596,19 @@
           this.text = this.canvas.text(pitchName(this.pitch, true)).font(style.editorText);
           this.text.font({
             size: this.textSize
-          }).x(this.textX).y(this.textY);
-          disableMouseEvents(this.text);
+          }).x(this.textX).y(this.textY).addClass("mouse-disabled");
         }
       }
+      /** Display the note as pressed and play back audio of the pitch */
 
-      noteOn() {
+
+      noteOn(velocity = 60) {
         this.keyRect.fill(this.displayOptions.clickColor);
         grid.highlightPitch(this.pitch, true, this.displayOptions);
-        audio.noteOn(this.pitch);
+        audio.noteOn(this.pitch, velocity);
       }
+      /** Display the note as released and stop audio of the pitch */
+
 
       noteOff() {
         this.keyRect.fill(this.displayOptions.color);
@@ -551,8 +617,12 @@
       }
 
     }
+    /** Relative spacing between start of key rectangles. */
 
+
+    PianoKey.keyYVals = [1, 1.1, 2, 2.4, 3, 4, 4.1, 5, 5.3, 6, 6.5, 7];
     const keyboard = {
+      /** Create SVG element and draw all piano keys. */
       draw() {
         this.canvas = SVG().addTo('#roll-keyboard').size(style.keyDisplay.width, editor$1.zoomY * editor$1.numKeys);
         this.svg = this.canvas;
@@ -579,10 +649,12 @@
 
       scaleVal: 1,
 
-      noteOn(pitch) {
-        this.keys[pitch].noteOn();
+      /** Trigger note on for the given pitch */
+      noteOn(pitch, velocity = 60) {
+        this.keys[pitch].noteOn(velocity);
       },
 
+      /** Trigger note off for the given pitch */
       noteOff(pitch) {
         this.keys[pitch].noteOff();
       },
@@ -593,6 +665,7 @@
         return style.keyDisplay.width;
       },
 
+      /** Move to the given scrolled coordinates. */
       scroll(x, y) {
         let $keyboard = $('.piano-container');
         $keyboard.css('overflow', 'scroll');
@@ -601,17 +674,44 @@
       }
 
     };
-    PianoKey.keyYVals = [1, 1.1, 2, 2.4, 3, 4, 4.1, 5, 5.3, 6, 6.5, 7];
 
     const userPreferences = {
+      /**
+       * If `true`, reset notes after the interval between
+       *   them is deleted.
+       */
       propagateBendAfterDeletion: true,
-      alwaysShowEdges: true,
+
+      /**
+       * If `true` always display the sizes of intervals.
+       *   If `false` only display the sizes of intervals when
+       *   hovering over edges.
+       * 
+       */
+      alwaysShowEdges: false,
+
+      /**
+       * The pitch bend width (in semitones) of the MIDI instrument
+       *  the user is importing from / exporting to.
+       */
       pitchBendWidth: 1,
-      // semitones
-      glissEasing: 1
+
+      /**
+       * The default amount of easing for created glisses.
+       */
+      glissEasing: 0.5
     };
 
     class SeqEdge {
+      /**
+       * A connection of an interval between two `SeqNote`s.
+       *   The interval is always assigned in the same direction
+       *   as the existing interval between `a` and `b`.
+       * 
+       * @param { SeqNote } a The start note
+       * @param { SeqNote } b The end note
+       * @param { tune.Interval } interval The interval to connect by
+       */
       constructor(a, b, interval) {
         this.a = a;
         this.b = b;
@@ -626,6 +726,8 @@
 
         this._interval = interval;
       }
+      /** Redraw the line and interval text. */
+
 
       updateGraphics(animateDuration = 300) {
         if (this.line) {
@@ -647,10 +749,14 @@
           text.center(this.midX, this.midY);
         }
       }
+      /** Midpoint x of the line. */
+
 
       get midX() {
         return (this.x1 + this.x2) / 2;
       }
+      /** Midpoint y of the line. */
+
 
       get midY() {
         return (this.y1 + this.y2) / 2;
@@ -681,6 +787,8 @@
       get selected() {
         return this._selected;
       }
+      /** Draw the edge as a path on `canvas`. Only called upon creation. */
+
 
       draw(canvas) {
         let path = simpleBezierPath({
@@ -696,29 +804,26 @@
         this.line.stroke({
           width
         });
+        addTooltip(this.line.node, "Press Enter to edit interval size");
         editor$1.assignMouseHandler(this, this.line, "edge_line");
         let intervalLabel = normAscendingInterval(this.interval).toString();
-        this.text = canvas.text(intervalLabel).font(style.editorText).center(this.midX, this.midY);
+        this.text = canvas.text(intervalLabel).font(style.editorText).center(this.midX, this.midY).addClass("mouse-disabled");
         if (!userPreferences.alwaysShowEdges) this.text.opacity(0);
-        disableMouseEvents(this.text);
       }
+      /** Hide the edge in the editor */
+
 
       hide() {
         this.text.hide();
         this.line.hide();
       }
+      /** Show the edge in the editor */
+
 
       show() {
         this.line.show();
         this.text.show();
       }
-      /*     get minNote() {
-              return (this.a.pitch < this.b.pitch)? this.a : this.b
-          }
-          get maxNote() {
-              return (this.a.pitch < this.b.pitch)? this.b : this.a
-          } */
-
       /**
        * This function is called when the user
        * directly deletes this object. The effects may propagate
@@ -756,6 +861,11 @@
       get interval() {
         return this._interval;
       }
+      /** The interval represented by the edge. 
+       * It will always go in the same direction 
+       * as the existing interval between `a` and `b`.
+       * */
+
 
       set interval(val) {
         /* Ensure the intervals go in the same direction */
@@ -774,7 +884,10 @@
         }
 
         this.updateGraphics(0);
-      } // return the amount the top note will be bent
+      }
+      /** Return the difference between the edge interval
+       *    and the ET interval between `a` and `b`.
+       * */
 
 
       getBend() {
@@ -782,7 +895,7 @@
         return this.interval.abs().subtract(etDistance).cents() / 100;
       }
 
-    }
+    } // define missing abs() in tune.Interval
 
     const abs = function () {
       return this.cents() > 0 ? this : this.inverse();
@@ -790,8 +903,6 @@
 
     tune.ETInterval.prototype.abs = abs;
     tune.FreqRatio.prototype.abs = abs;
-
-    // and SeqEdge
 
     class SeqNote {
       constructor(pitch, velocity, start, duration) {
@@ -804,6 +915,8 @@
         this._bend = 0;
         SeqNote.graph.set(this, new Map());
       }
+      /* Update display and set velocity. Valid range = [0, 128) */
+
 
       set velocity(val) {
         this._velocity = val.clamp(0, 128);
@@ -822,12 +935,17 @@
       get pitch() {
         return this._pitch;
       }
+      /* Update display and set pitch. Valid range = [0, 128) */
+
 
       set pitch(val) {
-        //console.log("changing", this.pitch, "to", val)
         this._pitch = Math.floor(val.clamp(0, 128));
         this.redrawPosition(0);
-      } // range : [-0.5, 0.5)
+      }
+      /** 
+       * Change bend and update the display. If the bend is 
+       * outside the range [-0.5, 0.5), change the pitch as well. 
+       * */
 
 
       set bend(val) {
@@ -942,6 +1060,8 @@
       get selected() {
         return this._selected;
       }
+      /** Redraw the position of the graphics and propagate this change. */
+
 
       redrawPosition() {
         this.rect.move(this.x, this.y);
@@ -949,21 +1069,26 @@
         this.handle.center(this.handleX, this.handleY);
         this.indicator.center(this.handleX - this.height * 0.8, this.handleY);
         this.centDisplay.x(this.handleX - this.height - this.centDisplay.length() - 5).cy(this.handleY);
-        this.resizeRight.move(this.xEnd - 4, this.y); // GET RID OF EXTRA CALLS
-
+        this.resizeRight.move(this.xEnd - 4, this.y);
         this.redrawOutputs(0);
         this.redrawInputs(0);
       }
+      /** Propagate position change to the input glisses and connected edges. */
+
 
       redrawInputs(animateDuration = 300) {
         for (let g of this.glissInputs) g.redrawPosition();
 
         for (let [_, edge] of this.neighbors) edge.updateGraphics(animateDuration);
       }
+      /** Propagate position change to the output glisses. */
+
 
       redrawOutputs() {
         for (let g of this.glissOutputs) g.redrawPosition();
       }
+      /** Update the position, size, and color of the display. */
+
 
       updateGraphics(animateDuration = 300) {
         let rect = this.rect,
@@ -994,18 +1119,24 @@
         if (Math.abs(this.bend) < 1e-2) this.indicator.fill('grey'); // shows when < 1c
         else if (this.bend < 0) this.indicator.fill('blue');else this.indicator.fill('red');
       }
+      /** Hide the note in the editor */
+
 
       hide() {
         this.rect.hide();
         this.handle.hide();
         this.indicator.hide();
       }
+      /** Show the note in the editor */
+
 
       show() {
         this.rect.show();
         this.handle.show();
         this.indicator.show();
       }
+      /** Move the note up or down octaves, adjusting the edge interval sizes. */
+
 
       transposeByOctaves(n) {
         let pitch = this.pitch;
@@ -1026,6 +1157,8 @@
 
         this.redrawPosition(0);
       }
+      /** Draw the note as a rectangle on `canvas`. Only called upon creation. */
+
 
       draw(canvas) {
         // shadow rectangle, shows equal tempered pitch
@@ -1039,8 +1172,7 @@
         this.handle.rect(this.height, this.height).center(this.handleX, this.handleY).front().stroke('black').fill('white').radius(2).opacity(0.2);
         this.indicator = canvas.rect(this.height / 4, this.height / 2).center(this.handleX - this.height * 0.8, this.handleY).radius(2);
         this.centDisplay = canvas.text(this.bendText).font(style.editorText).opacity(0);
-        this.centDisplay.x(this.handleX - this.height - this.centDisplay.length() - 5).cy(this.handleY);
-        disableMouseEvents(this.centDisplay);
+        this.centDisplay.x(this.handleX - this.height - this.centDisplay.length() - 5).cy(this.handleY).addClass("mouse-disabled");
         this.resizeRight = canvas.rect(4, this.height).move(this.xEnd - 4, this.y).radius(2).stroke('black').opacity(0.3).fill('black');
         addTooltip(this.handle.node, "Drag to attach notes by an interval");
         addTooltip(this.rect.node, "Shift+Drag to adjust pitch bend");
@@ -1061,25 +1193,13 @@
         this.updateGraphics(0);
         return [this.rect, this.shadowRect];
       }
+      /** The number of cents of bend, as a string. */
+
 
       get bendText() {
         let str = Math.round(this.bend * 100 * 100) / 100 + "c";
         if (this.bend >= 0) str = "+" + str;
         return str;
-      }
-
-      getIntervalTo(other) {
-        return this.BFS({
-          initialStore: [tune.ETInterval(0)],
-          predicate: (edge, child) => child == other,
-          combine: (edge, child, interval) => {
-            if (edge.maxNote == child) return [edge.interval.add(interval)];else return [edge.interval.inverse().add(interval)];
-          },
-          successVal: (edge, child, interval) => {
-            if (edge.maxNote == child) return edge.interval.add(interval);else return edge.interval.inverse().add(interval);
-          },
-          failureVal: () => tune.ETInterval(other.soundingPitch - this.soundingPitch)
-        });
       }
       /**
        * StoreVals := [...]
@@ -1125,6 +1245,35 @@
         if (options.returnAll) return [...visited];
         return options.failureVal();
       }
+      /**
+       * Calculate the interval from `this` to `other`. 
+       * If they are in the same component, accumulate the 
+       * interval along the path. Otherwise, calculate the 
+       * difference as an ET interval. 
+       */
+
+
+      getIntervalTo(other) {
+        return this.BFS({
+          initialStore: [tune.ETInterval(0)],
+          predicate: (edge, child) => child == other,
+          combine: (edge, child, interval) => {
+            if (edge.maxNote == child) return [edge.interval.add(interval)];else return [edge.interval.inverse().add(interval)];
+          },
+          successVal: (edge, child, interval) => {
+            if (edge.maxNote == child) return edge.interval.add(interval);else return edge.interval.inverse().add(interval);
+          },
+          failureVal: () => tune.ETInterval(other.soundingPitch - this.soundingPitch)
+        });
+      }
+      /**
+       * Connect to another note by an interval, returning the newly created `SeqEdge`.
+       * 
+       * @param { SeqNote } other 
+       * @param { tune.Interval } by 
+       * @param { number } animateDuration 
+       */
+
 
       connectTo(other, by = guessJIInterval(this.pitch, other.pitch), animateDuration = 300) {
         if (this.isConnectedTo(other)) return null;
@@ -1135,6 +1284,11 @@
         this.propagateBend(this.bend, animateDuration, oldNeighbors);
         return edge;
       }
+      /**
+       * If the `this` and `other` are in the same component, 
+       *  remove the last edge on the path to `other`.
+       */
+
 
       disconnectFrom(other) {
         return this.BFS({
@@ -1146,6 +1300,10 @@
           failureVal: ø => false
         });
       }
+      /**
+       * Returns true if `other` is in the same component as `this`.
+       */
+
 
       isConnectedTo(other) {
         return this.BFS({
@@ -1154,17 +1312,24 @@
           failureVal: ø => false
         });
       }
+      /**
+       * Returns all notes in the component, not including `this`.
+       */
+
 
       getAllConnected() {
         return this.BFS({
           predicate: () => false,
           returnAll: true
         });
-      } // offset all children by this bend amount
+      }
+      /** 
+       * Adjust the pitch bend of `this`
+       * and propagate the effect along the graph
+      */
 
 
       propagateBend(bend = this.bend, animateDuration = 300, awayFrom = []) {
-        //console.log("started at", this.pitch)
         this.bend = bend;
         this.BFS({
           noVisit: awayFrom,
@@ -1218,6 +1383,15 @@
       }
 
     }
+    /** 
+     * The adjacency data structure for all notes in the editor. 
+     * Structure: `Map<SeqNote a, Map<SeqNote b, SeqEdge edge>>`.
+     *  `edge` is the edge from `a` to `b`. 
+     * */
+    // The edges are undirected, but
+    //  I don't think it's possible to index by a pair of objects
+    //  so each edge is stored as both (a, b) and (b, a).
+
     SeqNote.graph = new Map();
 
     const bezier = require("bezier-easing");
@@ -1275,8 +1449,6 @@
         let color, width;
 
         if (this.startNote.xEnd >= this.endNote.x) {
-          /* color = 'red'
-          width = 2 */
           throw "Forbidden gliss.";
         } else {
           this.gradient = this.canvas.gradient('linear', add => {
@@ -1296,13 +1468,8 @@
         }, 'horizontal', this.easing)).stroke({
           color,
           width
-        }).fill('none').opacity(0.6).insertBefore(this.startNote.group).insertBefore(this.endNote.group); //this.line.addClass('gliss-line')
-        // add tooltip
-
-        /* this.line.element("title")
-            .words("Shift+Drag to adjust easing") */
-
-        addTooltip(this.line.node, "Shift+Drag to adjust easing");
+        }).fill('none').opacity(0.6).insertBefore(this.startNote.group).insertBefore(this.endNote.group);
+        addTooltip(this.line.node, "Drag to adjust easing");
         editor$1.assignMouseHandler(this, this.line, "gliss_line");
       }
 
@@ -1340,17 +1507,63 @@
         let dFreq = f2 - f1;
         let freqCurve = glissPoints.map(n => 2 ** n - 1) // make exponential (pitch)
         .map(n => n * dFreq + f1);
-        return freqCurve;
+        return new Float32Array(freqCurve);
       }
 
     }
 
-    const JZZ = require('jzz');
-
-    require('jzz-midi-smf')(JZZ);
-
     const MIDI = JZZ.MIDI;
     const midi = {
+      /** The input MIDI device. */
+      port: undefined,
+
+      /**
+       * @async 
+       * Return a `Promise` that 
+       * resolves with an array of 
+       * connected MIDI input devices. 
+       * */
+      getInputDevices() {
+        return new Promise((resolve, reject) => {
+          JZZ({
+            sysex: true
+          }).and(function () {
+            resolve(this.info().inputs);
+          });
+        });
+      },
+
+      /**
+       * Change the input MIDI device. The input
+       * should be the name of the device or an element of
+       * the array returned by `this.getInputDevices()`
+       */
+      setInputDevice(device) {
+        this.port?.close();
+        this.port = JZZ().openMidiIn(device);
+        this.port.connect(midi.handleInputMessage);
+      },
+
+      /** Perform the action encoded in a MIDI message. */
+      handleInputMessage(mid) {
+        if (mid.isNoteOn()) {
+          let pitch = mid.getNote();
+          let velocity = mid.getVelocity();
+          keyboard.noteOn(pitch, velocity);
+        } else if (mid.isNoteOff()) {
+          let pitch = mid.getNote();
+          keyboard.noteOff(pitch);
+        }
+      },
+
+      /**
+       * Write the selected notes to a MIDI file.
+       * 
+       * @param { SeqNote[] } notes 
+       * @param { string } fileName 
+       * @param { {releaseTime: number } } options 
+       * An object with preferences for the export.
+       */
       writeToFile(notes, fileName, options) {
         // Construct multitrack midi data
         let smf = MIDI.SMF();
@@ -1359,7 +1572,7 @@
         for (let i = 0; i < tracks.length; i++) {
           let mtrk = MIDI.SMF.MTrk();
           smf.push(mtrk);
-          tracks[i].forEach(note => addNoteToTrack(note, mtrk));
+          tracks[i].forEach(note => this.addNoteToTrack(note, mtrk));
         } // Create and download .mid file
 
 
@@ -1372,6 +1585,7 @@
         a.click();
       },
 
+      /** Partition `notes` into a number of arrays without pitch bend conflict. */
       partitionIntoTracks(notes, options = {}) {
         options.releaseTime = options.releaseTime || 0;
         /* Need some logic here to handle glisses... */
@@ -1397,6 +1611,20 @@
         return tracks;
       },
 
+      /** Convert the note to MIDI and add all necessary events. */
+      addNoteToTrack(note, track) {
+        let tick = note.start * 32;
+        let endTick = note.end * 32;
+        let pitch = pitchName(note.pitch, true);
+        let velocity = note.velocity;
+        let bend = scale14bits(note.bend / userPreferences.pitchBendWidth);
+        track.add(tick, MIDI.noteOn(0, pitch, velocity)).add(tick, MIDI.pitchBend(0, bend)).add(endTick, MIDI.noteOff(0, pitch));
+      },
+
+      /** 
+       * @async
+       * Read a MIDI file and return an array of `SeqNote`s.
+       * */
       readFromFile(file) {
         return new Promise((resolve, reject) => {
           if (!file) return reject();
@@ -1460,16 +1688,6 @@
       }
 
     };
-
-    function addNoteToTrack(note, track) {
-      let tick = note.start * 32;
-      let endTick = note.end * 32;
-      let pitch = pitchName(note.pitch, true);
-      let velocity = note.velocity;
-      let bend = scale14bits(note.bend / userPreferences.pitchBendWidth);
-      track.add(tick, MIDI.noteOn(0, pitch, velocity)).add(tick, MIDI.pitchBend(0, bend)).add(endTick, MIDI.noteOff(0, pitch));
-    } // scale from [-1, 1) to [0, 16384)
-
 
     const scale14bits = val => {
       let result = Math.floor(16384 * (val + 1) / 2);
@@ -1655,10 +1873,20 @@
     window.redoStack = redoStack;
 
     const handlers = {};
-    let display = false; // this is problematic
+    /* 
+        Each handler may include the following methods:
+            - exited(e, obj)
+            - entered(e, obj)
+            - hovered(e, obj)
+            - clicked(e, obj)
+            - doubleClicked(e, obj)
+        Each method is passed the mouse event `e` and the object to modify.
+    */
 
+    let display = false;
     handlers["note_group"] = {
       exited(e, note) {
+        /* hide number of cents */
         if (display && editor$1.action != editor$1.bend) {
           note.centDisplay.opacity(0);
           display = false;
@@ -1666,10 +1894,11 @@
       },
 
       hovered(e, note) {
+        /* show number of cents */
         if (editor$1.action != editor$1.bend) {
           note.centDisplay.opacity(1);
           display = true;
-        } // added from attach handler
+        } // make note a destination for connection
 
 
         if (editor$1.seqConnector.source && note != editor$1.seqConnector.source) {
@@ -1679,8 +1908,10 @@
             let intervalText;
 
             if (note.isConnectedTo(editor$1.seqConnector.source)) {
+              /* No cycles allowed */
               editor$1.setCursorStyle("not-allowed");
             } else {
+              /* Display the potential new interval */
               let defaultInterval = guessJIInterval(editor$1.seqConnector.source.pitch, note.pitch);
               intervalText = normAscendingInterval(defaultInterval).toString();
               let {
@@ -1690,6 +1921,7 @@
               editor$1.seqText.text(intervalText).center(x, y - 15).front().show();
             }
           } else if (editor$1.action == editor$1.measurer) {
+            /* Measure the distance between the two notes */
             let text = editor$1.seqConnector.source.getIntervalTo(note).toString();
             let {
               x,
@@ -1702,8 +1934,10 @@
 
       clicked(e, note) {
         if (e.metaKey || e.ctrlKey) {
+          /* Ctrl-click adds or removes an object from selection */
           editor$1.toggleObjectInSelection(note);
         } else if (editor$1.tool == "ruler") {
+          /* Begin measuring with the ruler */
           editor$1.clickStart = editor$1.canvas.point(e.x, e.y);
           editor$1.action = editor$1.measurer;
           editor$1.seqConnector.source = note;
@@ -1714,11 +1948,12 @@
           editor$1.measurer(editor$1.seqConnector, e);
         } else {
           if (e.altKey) {
+            /* Alt-drag = immediate copy/paste */
             editor$1.copySelection();
             editor$1.paste();
             editor$1.action = editor$1.move;
           } else {
-            console.log("note clik");
+            /* Clicking: just select a note */
             editor$1.selectObject(note);
           }
 
@@ -1738,6 +1973,7 @@
       },
 
       clicked(e, note) {
+        /* Resize */
         editor$1.action = editor$1.resizeLeft;
         editor$1.selectObject(note);
         macroActionStart(editor$1.resizeLeft, "resizeLeft");
@@ -1755,6 +1991,7 @@
 
       clicked(e, note) {
         if (e.shiftKey) {
+          /* Create a gliss from this note */
           editor$1.action = editor$1.glisser;
           editor$1.seqConnector.source = note;
           let color = style.noteFill(note);
@@ -1765,6 +2002,7 @@
           }).opacity(0.6).show();
           editor$1.glisser(editor$1.seqConnector, e);
         } else {
+          /* Resize */
           editor$1.action = editor$1.resizeRight;
           editor$1.selectObject(note);
           macroActionStart(editor$1.resizeRight, "resizeRight");
@@ -1783,16 +2021,13 @@
       },
 
       clicked(e, note) {
-        let pt = editor$1.canvas.point(e.x, e.y); //let pt = mousePosn(e);
-        //seqConnector.plot(pt.x, this.y + 0.5*this.height, pt.x, pt.y).show().front();
-
+        /* Drag to connect to another note */
+        let pt = editor$1.canvas.point(e.x, e.y);
         let path = simpleBezierPath({
           x: pt.x,
           y: note.y + 0.5 * note.height
         }, pt, 'vertical');
         editor$1.seqConnector.plot(path).stroke(style.editorLine).opacity(1).show();
-        /* .front(); */
-
         editor$1.seqConnector.source = note;
         editor$1.action = editor$1.connector;
       }
@@ -1804,61 +2039,68 @@
         if (editor$1.action != editor$1.bend) editor$1.setCursorStyle("default");
       },
 
+      hovered(e, note) {
+        if (e.shiftKey) editor$1.setCursorStyle("ns-resize");else editor$1.setCursorStyle("move");
+      },
+
       clicked(e, note) {
         if (e.shiftKey) {
+          /* Shift-drag = bend */
           editor$1.action = editor$1.bend;
           editor$1.selectObject(note);
           macroActionStart(editor$1.bend, "bend");
         } else {
+          /* Drag = move */
           editor$1.action = editor$1.move;
           editor$1.selectObject(note);
           macroActionStart(editor$1.move, "move");
         }
 
         note.centDisplay.opacity(1);
-      },
-
-      hovered(e, note) {
-        if (e.shiftKey) editor$1.setCursorStyle("ns-resize");else editor$1.setCursorStyle("move"); //editor.setConnectorDestination(e, note);
       }
 
     };
     handlers["edge_line"] = {
+      hovered(e, edge) {
+        /* Show interval size */
+        edge.text.opacity(1);
+      },
+
+      exited(e, edge) {
+        /* Hide interval size */
+        if (!userPreferences.alwaysShowEdges) edge.text.animate(100).opacity(0);
+      },
+
       clicked(e, edge) {
         if (e.metaKey || e.ctrlKey) editor$1.toggleObjectInSelection(edge);else editor$1.selectObject(edge);
         e.stopPropagation();
       },
 
-      hovered(e, edge) {
-        edge.text.opacity(1);
-      },
-
-      exited(e, edge) {
-        if (!userPreferences.alwaysShowEdges) edge.text.animate(100).opacity(0);
-      },
-
-      doubleClick(e, edge) {
+      doubleClicked(e, edge) {
         editor$1.typeEdit(null, edge);
       }
 
     };
     handlers["gliss_line"] = {
+      hovered(e, gliss) {
+        editor$1.setCursorStyle("ns-resize");
+      },
+
+      exited(e, gliss) {
+        if (editor$1.action != editor$1.glissEasing) editor$1.setCursorStyle("auto");
+      },
+
       clicked(e, gliss) {
         if (e.metaKey || e.ctrlKey) {
           editor$1.toggleObjectInSelection(gliss);
-        } else if (e.shiftKey) {
+        } else {
+          /* Drag = adjust easing */
           editor$1.selectObject(gliss);
           editor$1.action = editor$1.glissEasing;
           macroActionStart(editor$1.glissEasing, "glissEasing");
-        } else {
-          editor$1.selectObject(gliss);
         }
 
         e.stopPropagation();
-      },
-
-      hovered(e, gliss) {
-        if (e.shiftKey) editor$1.setCursorStyle("ns-resize");
       }
 
     };
@@ -1872,31 +2114,37 @@
       $buttonContainer: $('.file-button-container'),
       $fileName: $('.filename'),
 
+      /* Show the loading animation then perform the callback */
       showLoader(msg, callback) {
         this.$loader.find("p").text(msg || 'loading...');
         this.$loader.fadeIn(1000);
         this.$guiContainer.fadeTo(2000, 0, callback);
       },
 
+      /* Hide the loading animation then perform the callback */
       hideLoader(callback) {
         this.$loader.fadeOut(1000);
         this.$guiContainer.fadeTo(2000, 1, callback);
       },
 
+      /* Message for save to local storage */
       showSaveMessage() {
         $('#save-time').text(`Saved to browser storage at ${new Date().toLocaleTimeString()}`).show().delay(1000).fadeOut(2000);
       },
 
+      /* Update the displayed filename */
       changeFileName(name) {
         this.$fileName.val(name);
       },
 
+      /* Append a button to the controls panel */
       addButton(text, parent = this.$controls) {
         return $(document.createElement('button')).text(text).appendTo(parent);
       },
 
+      /* Append a button with an icon to the controls panel */
       iconButton(imgSrc, callback) {
-        let $button = $(document.createElement('button')).on('click', callback).appendTo(this.$buttonContainer).addClass("icon-button");
+        let $button = $(document.createElement('button')).on('click', callback).appendTo(this.$buttonContainer).addClass("icon-button has-tooltip");
         $(`<img src="${imgSrc}"/>`).attr({
           height: 15,
           width: 15
@@ -1904,6 +2152,7 @@
         return $button;
       },
 
+      /* Append a divider to the controls panel */
       divider() {
         $('<span></span>').appendTo(this.$buttonContainer).css({
           'border-left': "2px solid black",
@@ -1913,27 +2162,39 @@
         });
       },
 
+      /* Create controls panel */
       init() {
+        /* Export .spr */
         this.iconButton("assets/download_icon.png", editor$1.saveJSONFile).attr('title', 'Download .spr file');
+        /* Export MIDI */
+
         this.iconButton("assets/midi2_icon.png", editor$1.exportMIDI).attr('title', 'Export .mid file').css({
           paddingRight: 0,
           paddingLeft: 0
         }).children().attr('width', 30);
+        /* Open */
+
         this.iconButton("assets/open_icon.png", ø => $filePick.trigger('click')).attr('title', 'Open .spr or .mid file');
+        /* Invisible filepicker */
+
         let $filePick = $(document.createElement('input')).attr('type', 'file').css({
           display: 'none',
           width: 0,
           opacity: 0
         }).on('change', e => {
-          editor$1.openFile(e.target.files[0]); //editor.openJSONFile(e.target.files[0])
-
+          editor$1.openFile(e.target.files[0]);
           $filePick.val("");
         }).appendTo(this.$controls);
         this.divider();
+        /* Copy file */
+
         this.iconButton("assets/copy_icon.png", editor$1.copyJSONToClipboard).attr('title', 'Copy file to clipboard');
+        /* Paste file */
+
         this.iconButton("assets/paste_icon.png", editor$1.pasteJSONFromClipboard).attr('title', 'Load file from clipboard');
         this.divider();
-        this.iconButton("assets/help_icon.png", ø => $('.control-screen').fadeIn(500)).attr('title', 'Show controls');
+        /* Edit filename */
+
         let saveName = true;
         const $fileName = $('.filename').on('keydown', e => {
           if (e.key == 'Enter') {
@@ -1948,41 +2209,28 @@
         }).on('keypress', e => {
           $fileName.trigger('input'), e.stopPropagation();
         }).on("blur", e => {
+          /* Only save the filename if edit is confirmed */
           if (saveName) editor$1.fileName = e.target.value;else e.target.value = editor$1.fileName;
           saveName = true;
         });
-        view$1.iconButton("assets/wand_icon.png", ø => editor$1.applyToSelection(editor$1.tuneAsPartials)).attr('title', 'Fit selection to the harmonic series');
-        let $eqButton = view$1.iconButton("assets/frac_icon.webp", ø => editor$1.applyToSelection(editor$1.equallyDivide, $divisions.val())).attr('title', 'Equally divide').children().attr({
+        /* Retune */
+
+        this.iconButton("assets/wand_icon.png", ø => editor$1.applyToSelection(editor$1.tuneAsPartials)).attr('title', 'Fit selection to the harmonic series');
+        /* Equally Divide */
+
+        let $eqButton = this.iconButton("assets/frac_icon.webp", ø => editor$1.applyToSelection(editor$1.equallyDivide, $divisions.val())).attr('title', 'Equally divide').children().attr({
           width: 12,
           height: 15
         });
-        /* 
-        function createDropdown(textArr, elem) {
-            elem.on('mouseenter', ø => div.show())
-                .on('mouseleave', ø => div.hide())
-            let div = $('<div></div>')
-                .appendTo(elem)
-                .addClass('dropdown')
-                .hide()
-            return textArr.map(text => {
-                return $(`<p>${text}</p>`)
-                    .appendTo(div)
-                    .addClass('dropdown-item')
-            })
-        } */
+        this.divider();
+        /* Open Settings */
 
-        /*     view.iconButton("assets/clear_icon.png", editor.clearAllData)
-                .attr('title', 'Clear all data') */
+        this.iconButton("assets/setting_icon.png", ø => $('.setting-screen').fadeIn(500)).attr('title', 'Settings');
+        /* Show Help */
 
-        /*     view.addButton("Show Controls")
-                .on('click', ø => $('.control-screen').fadeIn(500)); */
-
-        /*     view.addButton("Fit to Harmonic Series!")
-                .on('click', ø => editor.applyToSelection(editor.tuneAsPartials)); */
-
+        this.iconButton("assets/help_icon.png", ø => $('.control-screen').fadeIn(500)).attr('title', 'Show controls');
         this.addButton("Clear all data").on('click', editor$1.clearAllData);
-        /*     let $eqButton = view.addButton('Equally Divide')
-            .on('click', ø => editor.applyToSelection(editor.equallyDivide, $divisions.val())); */
+        /* Change number of equal divisions */
 
         const $divisions = $(document.createElement('input')).attr({
           type: 'number',
@@ -1995,6 +2243,8 @@
             e.stopPropagation();
           }
         }).appendTo(this.$controls);
+        /* Change tempo */
+
         $(document.createTextNode('bpm:')).appendTo(this.$controls);
         const $tempo = $(document.createElement('input')).attr({
           type: 'number',
@@ -2004,6 +2254,8 @@
         }).on('input', ø => {
           playback.bpm = parseInt($tempo.val());
         }).appendTo(this.$controls);
+        /* Zoom for editor */
+
         const $xRange = $(document.createElement('input')).attr({
           id: 'x-zoom',
           type: "range",
@@ -2016,16 +2268,20 @@
           bottom: 10
         }).appendTo('body');
         $('.control-screen').on('click', ø => $('.control-screen').fadeOut(500));
+        $('.setting-screen').on('click', ø => $('.setting-screen').fadeOut(500));
         $xRange.on('input', ø => editor$1.zoom(+$xRange.val(), editor$1.zoomY));
       }
 
     };
 
     /**
+     * Experimental!
+     * 
      * Model the predicted sequence of JI (or other) 
      *   intervals as a hidden Markov model, with
      *   interval classes as observed variables
      *   and the sequence moving upwards in pitch
+     * 
      */
     const instances = {};
     const states = new Set();
@@ -2122,6 +2378,13 @@
         return instances[event.toString()] / instances["U"];
       }
     }
+
+    /**
+     * editor.js
+     * 
+     * The controller for the piano-roll editor. 
+     * Most actions are passed through it at some point
+     */
 
     const {
       shape,
@@ -2256,6 +2519,10 @@
           y: e.y
         };
       }).mousedown(e => {
+        // just in case you delete an object while its tooltip is showing
+        $(".ui-tooltip").fadeOut(function () {
+          this.remove();
+        });
         editor$1.clickStart = editor$1.canvas.point(e.x, e.y);
 
         if (!editor$1.action) {
@@ -2332,11 +2599,8 @@
       };
 
       editor$1.selectBox = editor$1.canvas.polygon().fill('grey').opacity(0.2).stroke('black').hide();
-      editor$1.seqConnector = editor$1.canvas.path().stroke(style.editorLine).hide().fill('none');
-      disableMouseEvents(editor$1.seqConnector);
-      editor$1.seqText = editor$1.canvas.text("").font(style.editorText).hide(); // pass through mouse events
-
-      disableMouseEvents(editor$1.seqText);
+      editor$1.seqConnector = editor$1.canvas.path().stroke(style.editorLine).hide().fill('none').addClass("mouse-disabled");
+      editor$1.seqText = editor$1.canvas.text("").font(style.editorText).hide().addClass("mouse-disabled");
     };
 
     editor$1.copySelection = function () {
@@ -2705,14 +2969,14 @@
     editor$1.clearAllData = mutator(function () {
       editor$1.delete(null, ...editor$1.objects);
     }, "clearAllData");
-    editor$1.addCompressedData = mutator(function (compressed, offsetTime = 0, offsetPitch = 0) {
+    editor$1.addCompressedData = mutator(function (compressed, atTime = 0, atPitch = 0) {
       let notes = [];
       let edges = [];
       let glisses = [];
       /* Add notes from compressed version */
 
       for (let noteObj of compressed.notes) {
-        let note = editor$1.addNote(noteObj.pitch + offsetPitch, noteObj.velocity, noteObj.start + offsetTime, noteObj.duration);
+        let note = editor$1.addNote(noteObj.pitch + atPitch, noteObj.velocity, noteObj.start + atTime, noteObj.duration);
         note.bend = noteObj.bend;
         notes.push(note);
       }
@@ -2766,6 +3030,7 @@
       for (let note of notes) note.transposeByOctaves(n);
     }, "transpose");
     editor$1.paste = mutator(function () {
+      if (!editor$1.clipboard?.notes?.length) return;
       let p = editor$1.mousePosn;
       let time = editor$1.mousePosnToTime(p);
       let pitch = editor$1.mousePosnToPitch(p); // Mouseposn => start of leftmost note, pitch of heighest note
@@ -2981,7 +3246,10 @@
       if (edge) {
         editor$1.edges.push(edge);
         edge.draw(editor$1.canvas);
-        editor$1.toggleObjectInSelection(edge);
+        editor$1.toggleObjectInSelection(edge); // update HMM
+
+        let pitchClass = Math.round(edge.maxNote.soundingPitch - edge.minNote.soundingPitch);
+        model.recordState(pitchClass, edge.interval);
       } else {
         addMessage('Cannot connect notes that are already connected.', 'orange');
       }
@@ -3013,14 +3281,6 @@
     };
 
     editor$1.getAllConnected = function (notes) {
-      /* let forest = new Set()
-      for (let note of notes) {
-          if (!forest.has(note)) {
-              let tree = note.getAllConnected()
-              for (let e of tree) forest.add(e)
-          }
-      }
-      return [...forest] */
       return editor$1.getComponents(notes).flat();
     };
 
@@ -3142,7 +3402,7 @@
       let notes = objs.filter(e => e instanceof SeqNote);
 
       if (notes.length > 1) {
-        notes.sort((a, b) => a.pitch - b.pitch); //// Only for HMM demo::
+        notes.sort((a, b) => a.pitch - b.pitch); //// Only for HMM demo:
 
         let intervalClasses = Array(notes.length - 1);
 
@@ -3321,7 +3581,9 @@
 
         e.stopPropagation();
       }).hide().fadeIn(fadeDur).appendTo(foreign.node);
-      let instructions = $(document.createElement('p')).text('Enter interval as cents, equal-tempered value, or frequency ratio, e.g. "386c", "4#12", or "5:4".').css({
+      const intervalText = 'Enter the new interval as a frequency ratio or equal-tempered value, e.g. "5:4" or "3.86#12" (3.86 steps in 12TET).';
+      const velocityText = 'Enter the new velocity as an integer from 0-127.';
+      let instructions = $(document.createElement('p')).text(intervalText).css({
         position: 'absolute',
         textAlign: 'center',
         width: "80%",
@@ -3345,7 +3607,7 @@
             ed.val(box.val());
             ed.attr('size', Math.max(box.val().length, 5));
           }
-        }).hide();
+        }).hide().on('focus', () => instructions.text(intervalText));
         if (!notes.length) box.fadeIn(fadeDur).trigger('focus');
         edgeBoxes.push(box);
       }
@@ -3361,7 +3623,7 @@
             n.css('border-color', color);
             n.val(box.val());
           }
-        }).hide().fadeIn(fadeDur).trigger('focus');
+        }).hide().on('focus', () => instructions.text(velocityText)).fadeIn(fadeDur).trigger('focus');
         box.show();
         noteBoxes.push(box);
       }
@@ -3385,7 +3647,8 @@
 
         if (interval) {
           edge.interval = interval;
-          edge.minNote.propagateBend(0);
+          edge.minNote.propagateBend(0); // update HMM
+
           let pitchClass = Math.round(edge.maxNote.soundingPitch - edge.minNote.soundingPitch);
           model.recordState(pitchClass, interval);
         }
@@ -3399,12 +3662,7 @@
         size: 3,
         maxlength: 3,
         placeholder: note.velocity
-      })
-      /* .on('input', ø => {
-        if (velocityInput.val()) velocityInput.css('border-color', 'green')
-        else velocityInput.css('border-color', 'red')
-      }) */
-      .on('mousedown', e => {
+      }).on('mousedown', e => {
         e.stopPropagation();
       }).on('submit', ø => {
         note.velocity = parseInt(velocityInput.val()) || note.velocity;
@@ -3444,6 +3702,16 @@
       keyboard.zoom(xZoom, yZoom);
       editor$1.scale(editor$1.zoomXY);
     };
+    /**
+     * Assign handler `type` to mouse events caught by `svgNode`.
+     * `parent` is passed to the handlers to be modified by
+     * the mouse event.
+     * 
+     * @param { SeqNote | SeqEdge | SeqGliss } parent The object to modify
+     * @param { SVG.Element } svgNode 
+     * @param { string } type   One of the types in handlers.js
+     */
+
 
     editor$1.assignMouseHandler = function (parent, svgNode, type) {
       let handler = handlers[type];
@@ -3451,7 +3719,7 @@
       if (handler.exited) svgNode.mouseout(e => handler.exited(e, parent));
       if (handler.clicked) svgNode.mousedown(e => handler.clicked(e, parent));
       if (handler.hovered) svgNode.mousemove(e => handler.hovered(e, parent));
-      if (handler.doubleClick) $(svgNode.node).on('dblclick', e => handler.doubleClick(e, parent));
+      if (handler.doubleClicked) $(svgNode.node).on('dblclick', e => handler.doubleClicked(e, parent));
     };
 
     editor$1.show = function (show) {
@@ -3470,70 +3738,110 @@
       keyboard.draw();
       playback.draw();
       editor$1.loadEditorFromLocalStorage();
-      let octaveTransposition = 60; // handle computer keyboard input
-      // have to use keydown instead of keypress
-      // to catch cmd+number before the browser default
+      let octaveTransposition = 60;
+      /**
+       * handle computer keyboard input
+       * have to use keydown instead of keypress
+       * to catch cmd+number before the browser default
+      */
 
       $(document).on("keydown", function (e) {
         if (e.metaKey) {
           /* Cmd + ... shortcuts */
-          if (e.key == 'a') {
+          switch (e.key) {
+            case 'a':
+              /* Select all */
+              e.preventDefault();
+              editor$1.selectAll();
+              break;
+
+            case 'c':
+              /* Copy */
+              e.preventDefault();
+              editor$1.copySelection();
+              break;
+
+            case 'v':
+              /* Paste */
+              e.preventDefault();
+              editor$1.paste();
+              break;
+
+            case 'z':
+              /* Undo/Redo */
+              if (e.shiftKey) redo();else undo();
+              e.preventDefault();
+              break;
+
+            case 'y':
+              /* Redo */
+              redo();
+              e.preventDefault();
+              break;
+
+            case 'r':
+              /* Reset Bend */
+              e.preventDefault();
+              editor$1.applyToSelection(editor$1.resetBend);
+              break;
+
+            case 's':
+              /* Save to browser storage */
+              e.preventDefault();
+              if (editor$1.updateLocalStorage()) view$1.showSaveMessage();else addMessage('Unable to save to browser storage', 'red');
+              break;
+
+            case 'o':
+              /* Open file from computer */
+              $filePick.trigger('click');
+              e.preventDefault();
+              break;
+
+            case 'ArrowDown':
+              /* Transpose note down */
+              editor$1.applyToSelection(editor$1.transposeByOctaves, -1);
+              e.preventDefault();
+              break;
+
+            case 'ArrowUp':
+              /* Transpose note up */
+              editor$1.applyToSelection(editor$1.transposeByOctaves, 1);
+              e.preventDefault();
+              break;
+          }
+
+          if (+e.key) {
+            /* Equally divide intervals */
             e.preventDefault();
-            editor$1.selectAll();
-          } else if (e.key == 'c') {
-            e.preventDefault();
-            editor$1.copySelection();
-          } else if (e.key == 'v') {
-            e.preventDefault();
-            editor$1.paste(e);
-          } else if (e.key == "z" && !e.shiftKey) {
-            undo();
-            e.preventDefault();
-          } else if (e.key == "z" && e.shiftKey || e.key == "y") {
-            redo();
-            e.preventDefault();
-          } else if (e.key == 'r') {
-            e.preventDefault();
-            editor$1.applyToSelection(editor$1.resetBend);
-          } else if (+e.key) {
-            /* check for digits */
-            e.preventDefault();
-            let n = +e.key;
+            let n = +e.key; // check for digits
+
             if (n > 1) editor$1.applyToSelection(editor$1.equallyDivide, n);
-          } else if (e.key == 's') {
-            // save
-            e.preventDefault();
-            if (editor$1.updateLocalStorage()) view$1.showSaveMessage();else addMessage('Unable to save to browser storage', 'red');
-          } else if (e.key == 'o') {
-            $filePick.trigger('click');
-            e.preventDefault();
-          } else if (e.key == 'ArrowDown') {
-            editor$1.applyToSelection(editor$1.transposeByOctaves, -1);
-            e.preventDefault();
-          } else if (e.key == 'ArrowUp') {
-            editor$1.applyToSelection(editor$1.transposeByOctaves, 1);
-            e.preventDefault();
           }
         } else if (e.shiftKey) {
+          /* Shift + ... commands */
           if (e.key == " ") {
+            /* Playback only selection */
             e.preventDefault();
             editor$1.togglePlaybackSelection();
           }
         } else if (e.key == 'Shift') {
+          /* Navigate around editor */
           editor$1.setCursorStyle("grab");
         } else if (e.key == " ") {
+          /* Playback from current position */
           e.preventDefault();
           editor$1.togglePlayback();
         } else if (e.key == 'Backspace') {
+          /* Delete */
           addMessage('Deleting selection');
           editor$1.applyToSelection(editor$1.delete, e);
-          /*     } else if (e.key == 'p') {
-                  editor.applyToSelection(editor.play); */
         } else if (e.key == 'Enter') {
+          /* Edit intervals/velocities */
           editor$1.applyToSelection(editor$1.typeEdit);
         }
       }).on("keyup", e => {
         if ("awsedftgyhujkolp;".includes(e.key)) {
+          /* End playback of note */
           let pitch = "awsedftgyhujkolp;".indexOf(e.key);
           keyboard.noteOff(pitch + octaveTransposition);
         } else if (e.key == 'Shift') {
@@ -3541,21 +3849,26 @@
         }
       }).on("keypress", e => {
         if ("awsedftgyhujkolp;".includes(e.key)) {
+          /* Playback note from computer keyboard */
           let pitch = "awsedftgyhujkolp;".indexOf(e.key);
           keyboard.noteOn(pitch + octaveTransposition);
         } else if (e.key == 'z') {
+          /* Transpose computer keyboard down */
           octaveTransposition = (octaveTransposition - 12).clamp(0, 108);
         } else if (e.key == 'x') {
+          /* Transpose computer keyboard up */
           octaveTransposition = (octaveTransposition + 12).clamp(0, 108);
         }
       });
       document.addEventListener('wheel', e => {
-        // catches multi-touch on laptops
+        // `wheel` event catches multi-touch on laptops too
         if (e.ctrlKey) {
+          /* Zoom in and out of the editor, fixed aspect ratio */
           let dy = e.deltaY;
           editor$1.scale(editor$1.zoomXY * (1 - dy * 0.01));
           e.preventDefault();
         } else {
+          /* Navigate around the editor */
           e.preventDefault();
           editor$1.deltaScroll(e.deltaX, e.deltaY);
         }
@@ -3564,6 +3877,7 @@
       });
 
       window.onbeforeunload = e => {
+        /* Autosave to local storage when the user closes/refreshes the page */
         editor$1.updateLocalStorage();
         e.preventDefault();
       }; // show controls for new users
@@ -3572,6 +3886,8 @@
       if (!localStorage.getItem("editor")) {
         $('.control-screen').delay(500).fadeIn(500);
       }
+      /* Define jQueryUI tooltip (uses title attr) */
+
 
       $(document).tooltip({
         items: ".has-tooltip",
@@ -3580,11 +3896,58 @@
           effect: "fadeIn",
           duration: 300
         },
+
+        /* Remove jQueryUI tooltip memory leak from invisible divs */
         close: function () {
           $(".ui-helper-hidden-accessible > *:not(:last)").remove();
         }
       });
+      $.contextMenu({
+        selector: ".has-contextmenu, .has-tooltip",
+        items: {
+          copy: {
+            name: "Copy (Ctrl+C)",
+            callback: () => editor$1.copySelection()
+          },
+          paste: {
+            name: "Paste (Ctrl+V)",
+            callback: () => editor$1.paste()
+          },
+          sep1: "---------",
+          createNote: {
+            name: "Create note here (Ctrl+Drag)",
+            callback: () => {
+              /* Create note */
+              let e = editor$1.mousePosn;
+              let n = editor$1.addNote(editor$1.mousePosnToPitch(e), 64, editor$1.mousePosnToTime(e), 4 * editor$1.timeGridSize);
+              editor$1.selectObject(n);
+            }
+          },
+          resetBend: {
+            name: "Reset Bend (Ctrl+R)",
+            callback: () => editor$1.applyToSelection(editor$1.resetBend)
+          },
+          tuneAsPartials: {
+            name: "Fit to harmonic series",
+            callback: () => editor$1.applyToSelection(editor$1.tuneAsPartials)
+          },
+          sep2: "---------",
+          edit: {
+            name: "Edit... (Enter)",
+            callback: () => editor$1.applyToSelection(editor$1.typeEdit)
+          }
+        }
+      });
+      /* Prevent editor form interpreting context menu action as a drag */
+
+      $(document).on("contextmenu:hide", () => editor$1.canvas.fire("mouseup"));
       view$1.hideLoader();
+      /* Connect to MIDI keyboard */
+
+      midi.getInputDevices().then(inputs => {
+        midi.setInputDevice(inputs[0]);
+        console.log(inputs);
+      });
     });
     window.prefs = userPreferences;
     window.view = view$1;

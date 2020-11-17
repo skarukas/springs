@@ -2,10 +2,10 @@ import audio from "./audio-playback.js";
 import editor from "./editor.js"
 import grid from "./grid.js";
 import style from "./style.js"
-import { disableMouseEvents, pitchName } from "./util.js";
+import { pitchName } from "./util.js";
 
-class PianoKey {
-
+/** A key in the displayed sideways keyboard. */
+class PianoKey { 
     constructor(pitch) {
         this.pitchClass = pitch % 12;
         this.isNatural = ![1, 3, 6, 8, 10].includes(this.pitchClass);
@@ -39,6 +39,7 @@ class PianoKey {
     get height() {
         return this.isNatural? this.whiteKeyHeight : this.whiteKeyHeight * 0.6;
     }
+    /** Redraw the position, size, and text of the graphics. */
     updateGraphics(animateDuration) {
         if (!this.canvas) return;
         this.keyRect.size(this.width, this.height)
@@ -54,6 +55,7 @@ class PianoKey {
             }
         }
     }
+    /** Draw the key as a rectangle on `canvas`. Only called upon creation. */
     draw(canvas) {
         this.canvas = canvas;
         this.keyRect = canvas.rect(this.width, this.height)
@@ -78,15 +80,16 @@ class PianoKey {
                 .font({size: this.textSize})
                 .x(this.textX)
                 .y(this.textY)
-                
-            disableMouseEvents(this.text)
+                .addClass("mouse-disabled")
         }
     }
-    noteOn() {
+    /** Display the note as pressed and play back audio of the pitch */
+    noteOn(velocity=60) {
         this.keyRect.fill(this.displayOptions.clickColor);
         grid.highlightPitch(this.pitch, true, this.displayOptions);
-        audio.noteOn(this.pitch)
+        audio.noteOn(this.pitch, velocity)
     }
+    /** Display the note as released and stop audio of the pitch */
     noteOff() {
         this.keyRect.fill(this.displayOptions.color);
         grid.highlightPitch(this.pitch, false, this.displayOptions);
@@ -94,7 +97,11 @@ class PianoKey {
     }
 }
 
+/** Relative spacing between start of key rectangles. */
+PianoKey.keyYVals = [1, 1.1, 2, 2.4, 3, 4, 4.1, 5, 5.3, 6, 6.5, 7];
+
 const keyboard = {
+    /** Create SVG element and draw all piano keys. */
     draw() {
         this.canvas = SVG()
             .addTo('#roll-keyboard')
@@ -116,9 +123,11 @@ const keyboard = {
         for (let key of this.keys) key.updateGraphics(0);
     },
     scaleVal: 1,
-    noteOn(pitch) {
-        this.keys[pitch].noteOn()
+    /** Trigger note on for the given pitch */
+    noteOn(pitch, velocity=60) {
+        this.keys[pitch].noteOn(velocity)
     },  
+    /** Trigger note off for the given pitch */
     noteOff(pitch) {
         this.keys[pitch].noteOff()
     }, 
@@ -126,6 +135,7 @@ const keyboard = {
     get width() { 
         return style.keyDisplay.width;
     },
+    /** Move to the given scrolled coordinates. */
     scroll(x, y) {
         let $keyboard = $('.piano-container');
         $keyboard.css('overflow', 'scroll');
@@ -133,7 +143,5 @@ const keyboard = {
         $keyboard.css('overflow', 'hidden')
     }
 }
-
-PianoKey.keyYVals = [1, 1.1, 2, 2.4, 3, 4, 4.1, 5, 5.3, 6, 6.5, 7];
 
 export default keyboard

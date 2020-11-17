@@ -49,6 +49,8 @@
 /- measure interval between pitches
 /- add ease editing for glisses!
 /- save gliss easing
+/- add MIDI keyboard input
+
 
 
 
@@ -96,10 +98,17 @@
 
 
 - GUI buttons
-    - add measuremnet tool
+    - add measurement tool
     - add settings
     - save settings in local storage
+    - add browser not supported if webmidi not supported :(
 - enable parsing of cents
 - editing menu has wrong text
 - glisses don't play back on safari
 - be more attentive to i/o operations that may fail
+
+- add MIDI recording
+- personalize context menus
+- if object is deleted, tooltip hangs around!!
+
+- graphics are slow on safari :(

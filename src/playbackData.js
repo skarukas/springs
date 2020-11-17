@@ -1,6 +1,10 @@
 import editor from "./editor.js";
 import ruler from "./ruler.js";
 
+/**
+ * Handles playback display and data,
+ * doesn't interact with the WebAudio API
+ */
 const playback = {
     draw() {
         this.line = editor.canvas.line().stroke({ width: 2, color: 'red'}).hide().front()
@@ -26,6 +30,7 @@ const playback = {
     get playing() {
         return playback.intervalIndex != -1;
     },
+    /* Play from the current position of the playback line or a specified point */
     play(startPosition = playback.position) {
         let start = Date.now();
         playback.pause();
@@ -41,24 +46,24 @@ const playback = {
             let deltaMs = now - start;
             let measureCount = deltaMs / measureLengthMs;
             let posn = startPosition + measureWidth * measureCount;
-            let screenPosn = Math.max(posn - 100, 0) * this.scaleVal;
-            //$scroller.get()[0].scroll(screenPosn, $scroller.scrollTop());
-            //$ruler.get()[0].scroll(screenPosn, $ruler.scrollTop());
 
             playback.position = posn;
             if (posn >= editor.width) playback.stop();
         }, 1000 / fps);
     },
+    /* Pause playback */
     pause() {
         clearInterval(playback.intervalIndex);
         playback.intervalIndex = -1;
     },
+    /* Stop playback */
     stop() {
         playback.pause();
         playback.position = 0;
         playback.line.hide();
         playback.carrot.hide();
     },
+    /* Convert the number of ticks to seconds */
     MIDITimeToSeconds(ticks) {
         return (60 * ticks) / (this.bpm * this.ticksPerBeat)
     }

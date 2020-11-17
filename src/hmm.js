@@ -1,8 +1,11 @@
 /**
+ * Experimental!
+ * 
  * Model the predicted sequence of JI (or other) 
  *   intervals as a hidden Markov model, with
  *   interval classes as observed variables
  *   and the sequence moving upwards in pitch
+ * 
  */
 
 const instances = { }

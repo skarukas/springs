@@ -1,7 +1,7 @@
 import { 
     simpleBezierPath, 
     normAscendingInterval, 
-    disableMouseEvents 
+    addTooltip
 } from "./util.js"
 import style from "./style.js"
 import editor from "./editor.js";
@@ -9,6 +9,15 @@ import SeqNote from "./SeqNote.js";
 import userPreferences from "./userPreferences.js";
 
 export default class SeqEdge {
+    /**
+     * A connection of an interval between two `SeqNote`s.
+     *   The interval is always assigned in the same direction
+     *   as the existing interval between `a` and `b`.
+     * 
+     * @param { SeqNote } a The start note
+     * @param { SeqNote } b The end note
+     * @param { tune.Interval } interval The interval to connect by
+     */
     constructor(a, b, interval) {
         this.a = a;
         this.b = b;
@@ -21,6 +30,7 @@ export default class SeqEdge {
         }
         this._interval = interval;
     }
+    /** Redraw the line and interval text. */
     updateGraphics(animateDuration=300) {
         if (this.line) {
             this.text.text(normAscendingInterval(this.interval).toString())
@@ -38,9 +48,11 @@ export default class SeqEdge {
             text.center(this.midX, this.midY)
         }
     }
+    /** Midpoint x of the line. */
     get midX() {
         return (this.x1 + this.x2) / 2;
     }
+    /** Midpoint y of the line. */
     get midY() {
         return (this.y1 + this.y2) / 2;
     }
@@ -64,6 +76,7 @@ export default class SeqEdge {
     get selected() {
         return this._selected;
     }
+    /** Draw the edge as a path on `canvas`. Only called upon creation. */
     draw(canvas) {
         let path = simpleBezierPath(
             {x: this.x1, y: this.y1},
@@ -77,28 +90,25 @@ export default class SeqEdge {
             .fill('none')
         this.line.stroke({width})
         
+        addTooltip(this.line.node, "Press Enter to edit interval size")
         editor.assignMouseHandler(this, this.line, "edge_line")
         let intervalLabel = normAscendingInterval(this.interval).toString()
         this.text = canvas.text(intervalLabel)
             .font(style.editorText)
             .center(this.midX, this.midY)
-        if (!userPreferences.alwaysShowEdges) this.text.opacity(0)
-        disableMouseEvents(this.text)                
+            .addClass("mouse-disabled")
+        if (!userPreferences.alwaysShowEdges) this.text.opacity(0)              
     }
+    /** Hide the edge in the editor */
     hide() {
         this.text.hide();
         this.line.hide();
     }
+    /** Show the edge in the editor */
     show() {
         this.line.show();
         this.text.show();
     }
-/*     get minNote() {
-        return (this.a.pitch < this.b.pitch)? this.a : this.b
-    }
-    get maxNote() {
-        return (this.a.pitch < this.b.pitch)? this.b : this.a
-    } */
     /**
      * This function is called when the user
      * directly deletes this object. The effects may propagate
@@ -130,6 +140,10 @@ export default class SeqEdge {
     get interval() {
         return this._interval;
     }
+    /** The interval represented by the edge. 
+     * It will always go in the same direction 
+     * as the existing interval between `a` and `b`.
+     * */
     set interval(val) {
         /* Ensure the intervals go in the same direction */
         if (this._interval.cents() * val.cents() > 0) {
@@ -148,13 +162,16 @@ export default class SeqEdge {
         
         this.updateGraphics(0)
     }
-    // return the amount the top note will be bent
+    /** Return the difference between the edge interval
+     *    and the ET interval between `a` and `b`.
+     * */
     getBend() {
         let etDistance = tune.ETInterval(this.maxNote.pitch - this.minNote.pitch)
         return this.interval.abs().subtract(etDistance).cents() / 100;
     }
 }
 
+// define missing abs() in tune.Interval
 const abs = function() {
     return (this.cents() > 0)? this : this.inverse()
 }

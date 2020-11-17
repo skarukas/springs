@@ -1,19 +1,26 @@
-import playback from "./playbackData.js";
+import playback from "./playbackData.js"; /* Try to remove playback as a dependency */
+import { addMessage } from "./util.js";
 
-/* Try to remove playback as a dependency */
-
+/**
+ * Namespace for functions interacting with the WebAudio API
+ */
 const audio = {
-    notes: Array(128),
-    playingNotes: new Set(),
+    notes: Array(128),       // map of midi notes -> osc
+    playingNotes: new Set(), // all oscillators
     initAudio() {
-        this.context = new (window.AudioContext || window.webkitAudioContext)();
-        this.gainNode = this.context.createGain();
-        this.gainNode.gain.setValueAtTime(0.2, this.context.currentTime);
-        this.gainNode.connect(this.context.destination); // connect to output
+        if (window.AudioContext || window.webkitAudioContext) {
+            this.context = new (window.AudioContext || window.webkitAudioContext)();
+            this.gainNode = this.context.createGain();
+            this.gainNode.gain.setValueAtTime(0.2, this.context.currentTime);
+            this.gainNode.connect(this.context.destination); // connect to output
+        } else {
+            addMessage("Unable to play audio. This browser does not support the WebAudio API.")
+        }
     },
     get now() {
         return this.context.currentTime
     },
+    /* Reset playback data */
     pause() {
         for (let [n, g] of this.playingNotes) {
             g.gain.value = 0
@@ -61,12 +68,12 @@ const audio = {
 
         this.playingNotes.add([a, oscGain])
 
-        //if (note.glissInputs.length) return //don't need to play
         for (let gliss of note.glissOutputs) {
             this.playGliss(gliss, end,
                 playback.MIDITimeToSeconds(gliss.endNote.start))
         }
     },
+    /* Play back a gliss starting at a certain time */
     playGliss(gliss, start=0, end=2.0) {
         let time = playback.position / editor.zoomX
         let offset = playback.MIDITimeToSeconds(time)
@@ -81,6 +88,8 @@ const audio = {
 
         let a = this.context.createOscillator()
         let oscGain = this.context.createGain()
+
+        // use provided easing
         a.frequency.value = gliss.startNote.frequency
         a.frequency.setValueCurveAtTime(
             gliss.getFreqCurve(),
@@ -112,6 +121,7 @@ const audio = {
 
         this.playingNotes.add([a, oscGain])
     },
+    /* Playback a set of notes */
     playNotes(notes) {
         for (let note of notes) {
             this.playNote(
@@ -120,7 +130,8 @@ const audio = {
                 playback.MIDITimeToSeconds(note.end))
         }
     },
-    noteOn(pitch) {
+    /* Start a note playing */
+    noteOn(pitch, velocity=60) {
         if (this.notes[pitch]) return
 
         if (!this.context) this.initAudio()
@@ -131,11 +142,12 @@ const audio = {
         a.type = 'sawtooth'
 
         a.start()
-        oscGain.gain.value = 0.4
+        oscGain.gain.value = velocity/127
         a.connect(oscGain).connect(this.gainNode)
 
         this.notes[pitch] = a;
     },
+    /* End a note playing */
     noteOff(pitch) {
         this.notes[pitch]?.stop(0)
         this.notes[pitch] = undefined

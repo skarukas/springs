@@ -1,9 +1,7 @@
 import editor from "./editor.js"
 import playback from "./playbackData.js"
-import midi from "./midi.js"
-import { disableMouseEvents } from "./util.js"
-/* for interaction with the DOM */
 
+/* for interaction with the DOM */
 const view = {
     $loader: $('.loader-container'),
     $guiContainer: $('#sequencer'),
@@ -11,15 +9,18 @@ const view = {
     $buttonContainer: $('.file-button-container'),
     $fileName: $('.filename'),
 
+    /* Show the loading animation then perform the callback */
     showLoader(msg, callback) {
         this.$loader.find("p").text(msg || 'loading...')
         this.$loader.fadeIn(1000)
         this.$guiContainer.fadeTo(2000, 0, callback)
     },
+    /* Hide the loading animation then perform the callback */
     hideLoader(callback) {
         this.$loader.fadeOut(1000)
         this.$guiContainer.fadeTo(2000, 1, callback)      
     },
+    /* Message for save to local storage */
     showSaveMessage() {
         $('#save-time')
             .text(`Saved to browser storage at ${(new Date()).toLocaleTimeString()}`)
@@ -27,19 +28,22 @@ const view = {
             .delay(1000)
             .fadeOut(2000)
     },
+    /* Update the displayed filename */
     changeFileName(name) {
         this.$fileName.val(name)
     },
+    /* Append a button to the controls panel */
     addButton(text, parent = this.$controls) {
         return $(document.createElement('button'))
             .text(text)
             .appendTo(parent)
     }, 
+    /* Append a button with an icon to the controls panel */
     iconButton(imgSrc, callback) {
         let $button = $(document.createElement('button'))
             .on('click', callback)
             .appendTo(this.$buttonContainer)
-            .addClass("icon-button")
+            .addClass("icon-button has-tooltip")
 
         $(`<img src="${imgSrc}"/>`)
             .attr({
@@ -48,6 +52,7 @@ const view = {
             }).appendTo($button)
         return $button;
     },
+    /* Append a divider to the controls panel */
     divider() {
         $('<span></span>')
             .appendTo(this.$buttonContainer)
@@ -58,10 +63,14 @@ const view = {
                 'padding-top': 4
             })
     },
+    /* Create controls panel */
     init() {
+        /* Export .spr */
         this.iconButton("assets/download_icon.png", editor.saveJSONFile)
             .attr('title', 'Download .spr file')
-            this.iconButton("assets/midi2_icon.png", editor.exportMIDI)
+
+        /* Export MIDI */
+        this.iconButton("assets/midi2_icon.png", editor.exportMIDI)
             .attr('title', 'Export .mid file')
             .css({
                 paddingRight: 0,
@@ -69,9 +78,12 @@ const view = {
             })
             .children()
             .attr('width', 30)
+
+        /* Open */
         this.iconButton("assets/open_icon.png", ø => $filePick.trigger('click'))
             .attr('title', 'Open .spr or .mid file')
 
+        /* Invisible filepicker */
         let $filePick = $(document.createElement('input'))
             .attr('type', 'file')
             .css({
@@ -81,23 +93,23 @@ const view = {
             })
             .on('change', e => {
                 editor.openFile(e.target.files[0])
-                //editor.openJSONFile(e.target.files[0])
                 $filePick.val("")
             })
             .appendTo(this.$controls)
 
         this.divider()
 
+        /* Copy file */
         this.iconButton("assets/copy_icon.png", editor.copyJSONToClipboard)
             .attr('title', 'Copy file to clipboard')
-            this.iconButton("assets/paste_icon.png", editor.pasteJSONFromClipboard)
+
+        /* Paste file */
+        this.iconButton("assets/paste_icon.png", editor.pasteJSONFromClipboard)
             .attr('title', 'Load file from clipboard')
 
         this.divider()
 
-        this.iconButton("assets/help_icon.png", ø => $('.control-screen').fadeIn(500))
-            .attr('title', 'Show controls')
-
+        /* Edit filename */
         let saveName = true;
         const $fileName = $('.filename')
             .on('keydown', e => {
@@ -110,52 +122,42 @@ const view = {
                 }
                 e.stopPropagation()
             })
-            .on('keypress', e => {$fileName.trigger('input'), e.stopPropagation()})
+            .on('keypress', e => { $fileName.trigger('input'), e.stopPropagation() })
             .on("blur", e => {
+                /* Only save the filename if edit is confirmed */
                 if (saveName) editor.fileName = e.target.value
                 else e.target.value = editor.fileName
                 saveName = true
             })
 
-        view.iconButton("assets/wand_icon.png", ø => editor.applyToSelection(editor.tuneAsPartials))
+        /* Retune */
+        this.iconButton("assets/wand_icon.png", ø => editor.applyToSelection(editor.tuneAsPartials))
             .attr('title', 'Fit selection to the harmonic series')
+
+        /* Equally Divide */
         let $eqButton = 
-            view.iconButton("assets/frac_icon.webp",  ø => editor.applyToSelection(editor.equallyDivide, $divisions.val()))
+            this.iconButton("assets/frac_icon.webp",  ø => editor.applyToSelection(editor.equallyDivide, $divisions.val()))
                 .attr('title', 'Equally divide')
                 .children()
                 .attr({
                     width: 12,
                     height: 15
                 })
-        /* 
-        function createDropdown(textArr, elem) {
-            elem.on('mouseenter', ø => div.show())
-                .on('mouseleave', ø => div.hide())
-            let div = $('<div></div>')
-                .appendTo(elem)
-                .addClass('dropdown')
-                .hide()
-            return textArr.map(text => {
-                return $(`<p>${text}</p>`)
-                    .appendTo(div)
-                    .addClass('dropdown-item')
-            })
-        } */
 
-    /*     view.iconButton("assets/clear_icon.png", editor.clearAllData)
-            .attr('title', 'Clear all data') */
+        this.divider()
+            
+        /* Open Settings */
+        this.iconButton("assets/setting_icon.png", ø => $('.setting-screen').fadeIn(500))
+            .attr('title', 'Settings')
 
-    /*     view.addButton("Show Controls")
-            .on('click', ø => $('.control-screen').fadeIn(500)); */
-    /*     view.addButton("Fit to Harmonic Series!")
-            .on('click', ø => editor.applyToSelection(editor.tuneAsPartials)); */
+        /* Show Help */
+        this.iconButton("assets/help_icon.png", ø => $('.control-screen').fadeIn(500))
+            .attr('title', 'Show controls')
+
         this.addButton("Clear all data")
             .on('click', editor.clearAllData)
 
-    /*     let $eqButton = view.addButton('Equally Divide')
-        .on('click', ø => editor.applyToSelection(editor.equallyDivide, $divisions.val())); */
-
-
+        /* Change number of equal divisions */
         const $divisions = $(document.createElement('input'))
             .attr({
                 type: 'number',
@@ -168,7 +170,8 @@ const view = {
                     e.stopPropagation()
                 }
             }).appendTo(this.$controls)
-
+        
+        /* Change tempo */
         $(document.createTextNode('bpm:')).appendTo(this.$controls)
         const $tempo = $(document.createElement('input'))
             .attr({
@@ -180,7 +183,7 @@ const view = {
                 playback.bpm = parseInt($tempo.val())
             }).appendTo(this.$controls)
 
-
+        /* Zoom for editor */
         const $xRange = $(document.createElement('input'))
             .attr({
                 id:'x-zoom',
@@ -195,6 +198,7 @@ const view = {
             }).appendTo('body')
 
         $('.control-screen').on('click', ø => $('.control-screen').fadeOut(500))
+        $('.setting-screen').on('click', ø => $('.setting-screen').fadeOut(500))
         $xRange.on('input', ø => editor.zoom(+$xRange.val(), editor.zoomY));
     }
 }

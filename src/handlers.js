@@ -1,12 +1,9 @@
 import editor from "./editor.js"
 import style from "./style.js"
 import { 
-    mousePosn, 
     simpleBezierPath, 
     normAscendingInterval, 
     guessJIInterval, 
-    parseIntervalText, 
-    addMessage 
 } from "./util.js"
 import SeqNote from "./SeqNote.js";
 import userPreferences from "./userPreferences.js"
@@ -15,27 +12,42 @@ import { macroActionStart } from "./undo-redo.js"
 const handlers = {};
 export default handlers
 
-let display = false; // this is problematic
+/* 
+    Each handler may include the following methods:
+        - exited(e, obj)
+        - entered(e, obj)
+        - hovered(e, obj)
+        - clicked(e, obj)
+        - doubleClicked(e, obj)
+    Each method is passed the mouse event `e` and the object to modify.
+*/
+
+let display = false;
 handlers["note_group"] = {
     exited(e, note) {
+        /* hide number of cents */
         if (display && editor.action != editor.bend) {
             note.centDisplay.opacity(0);
             display = false;
         }
     },
     hovered(e, note) {
+        /* show number of cents */
         if (editor.action != editor.bend) {
             note.centDisplay.opacity(1);
             display = true;
         }
-        // added from attach handler
+
+        // make note a destination for connection
         if (editor.seqConnector.source && note != editor.seqConnector.source) {
             editor.seqConnector.destination = note;
             if (editor.action == editor.connector) {
                 let intervalText;
                 if (note.isConnectedTo(editor.seqConnector.source)) {
+                    /* No cycles allowed */
                     editor.setCursorStyle("not-allowed");
                 } else {
+                    /* Display the potential new interval */
                     let defaultInterval = guessJIInterval(editor.seqConnector.source.pitch, note.pitch)
                     intervalText = normAscendingInterval(defaultInterval).toString();
 
@@ -46,6 +58,7 @@ handlers["note_group"] = {
                         .show();
                 }
             } else if (editor.action == editor.measurer) {
+                /* Measure the distance between the two notes */
                 let text = editor.seqConnector.source.getIntervalTo(note).toString();
                 let {x, y} = editor.canvas.point(e.x, e.y)
                 editor.seqText.text(text)
@@ -57,8 +70,10 @@ handlers["note_group"] = {
     },
     clicked(e, note) {
         if (e.metaKey || e.ctrlKey) {
+            /* Ctrl-click adds or removes an object from selection */
             editor.toggleObjectInSelection(note);
         } else if (editor.tool == "ruler") {
+            /* Begin measuring with the ruler */
             editor.clickStart = editor.canvas.point(e.x, e.y);
             editor.action = editor.measurer;
             editor.seqConnector.source = note;
@@ -69,11 +84,12 @@ handlers["note_group"] = {
             editor.measurer(editor.seqConnector, e)
         } else {
             if (e.altKey) {
+                /* Alt-drag = immediate copy/paste */
                 editor.copySelection()
                 editor.paste()
                 editor.action = editor.move
             } else {
-                console.log("note clik")
+                /* Clicking: just select a note */
                 editor.selectObject(note);
             }
             let notes = editor.selection.filter(e => e instanceof SeqNote)
@@ -91,6 +107,7 @@ handlers["note_left_handle"] = {
         if (editor.action != editor.resizeLeft) editor.setCursorStyle("default");
     },
     clicked(e, note) {
+        /* Resize */
         editor.action = editor.resizeLeft;
         editor.selectObject(note)
         macroActionStart(editor.resizeLeft, "resizeLeft")
@@ -108,6 +125,7 @@ handlers["note_right_handle"] = {
     },
     clicked(e, note) {
         if (e.shiftKey) {
+            /* Create a gliss from this note */
             editor.action = editor.glisser;
             editor.seqConnector.source = note;
             let color = style.noteFill(note)
@@ -117,6 +135,7 @@ handlers["note_right_handle"] = {
                 .show();
             editor.glisser(editor.seqConnector, e)
         } else {
+            /* Resize */
             editor.action = editor.resizeRight;
             editor.selectObject(note)
             macroActionStart(editor.resizeRight, "resizeRight")
@@ -134,9 +153,8 @@ handlers["note_attach"] = {
         else editor.setCursorStyle("crosshair");
     },
     clicked(e, note) {
+        /* Drag to connect to another note */
         let pt = editor.canvas.point(e.x, e.y);
-        //let pt = mousePosn(e);
-        //seqConnector.plot(pt.x, this.y + 0.5*this.height, pt.x, pt.y).show().front();
         let path = simpleBezierPath(
             {x: pt.x, y: note.y + 0.5*note.height}, 
             pt, 
@@ -145,7 +163,6 @@ handlers["note_attach"] = {
             .stroke(style.editorLine)
             .opacity(1)
             .show()
-            /* .front(); */
         editor.seqConnector.source = note;
         editor.action = editor.connector;
     }
@@ -157,56 +174,61 @@ handlers["note_body"] = {
         editor.seqConnector.destination = null;
         if (editor.action != editor.bend) editor.setCursorStyle("default");
     },
+    hovered(e, note) {
+        if (e.shiftKey) editor.setCursorStyle("ns-resize");
+        else editor.setCursorStyle("move");
+    },
     clicked(e, note) {
         if (e.shiftKey) {
+            /* Shift-drag = bend */
             editor.action = editor.bend;
             editor.selectObject(note)
             macroActionStart(editor.bend, "bend")
         } else {
+            /* Drag = move */
             editor.action = editor.move;
             editor.selectObject(note)
             macroActionStart(editor.move, "move")
         }
         note.centDisplay.opacity(1);
-    },
-    hovered(e, note) {
-        if (e.shiftKey) editor.setCursorStyle("ns-resize");
-        else editor.setCursorStyle("move");
-        //editor.setConnectorDestination(e, note);
     }
 }
 
 handlers["edge_line"] = {
+    hovered(e, edge) {
+        /* Show interval size */
+        edge.text.opacity(1)
+    },
+    exited(e, edge) {
+        /* Hide interval size */
+        if (!userPreferences.alwaysShowEdges) edge.text.animate(100).opacity(0)
+    },
     clicked(e, edge) {
         if (e.metaKey || e.ctrlKey) editor.toggleObjectInSelection(edge); 
         else editor.selectObject(edge);
         e.stopPropagation()
     },
-    hovered(e, edge) {
-        edge.text.opacity(1)
-    },
-    exited(e, edge) {
-        if (!userPreferences.alwaysShowEdges) edge.text.animate(100).opacity(0)
-    },
-    doubleClick(e, edge) {
+    doubleClicked(e, edge) {
         editor.typeEdit(null, edge)
     }
 }
 
 handlers["gliss_line"] = {
+    hovered(e, gliss) {
+        editor.setCursorStyle("ns-resize");
+    },
+    exited(e, gliss) {
+        if (editor.action != editor.glissEasing) editor.setCursorStyle("auto");
+    },
     clicked(e, gliss) {
         if (e.metaKey || e.ctrlKey) {
             editor.toggleObjectInSelection(gliss); 
-        } else if (e.shiftKey) {
+        } else {
+            /* Drag = adjust easing */
             editor.selectObject(gliss)
             editor.action = editor.glissEasing
             macroActionStart(editor.glissEasing, "glissEasing")
-        } else {
-            editor.selectObject(gliss);
         }
         e.stopPropagation()
     },
-    hovered(e, gliss) {
-        if (e.shiftKey) editor.setCursorStyle("ns-resize");
-    }
 }
