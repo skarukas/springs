@@ -6,11 +6,24 @@ import ruler from "./ruler.js";
 import view from "./view.js";
 import { addMessage } from "./util.js";
 import userPreferences from "./userPreferences.js"
-import { undo } from "./undo-redo.js";
+import { undo, redo } from "./undo-redo.js";
 import midi from "./midi.js";
 
 // onload
-$(ø => {
+$(ø => {
+    try {
+        init()
+    } catch (e) {
+        view.hideLoader(() => {
+            addMessage("An error occured when loading. Some features may not work correctly.", "red")
+            addMessage(e, "red")
+            addMessage("For a copy of this error, open your browser console.", "red")
+            console.error(e)
+        })
+    }
+})
+
+function init() {
     view.init();
     editor.draw();
     ruler.draw();
@@ -105,7 +118,6 @@ $(ø => {
             editor.togglePlayback()
         } else if (e.key == 'Backspace') {
             /* Delete */
-            addMessage('Deleting selection')
             editor.applyToSelection(editor.delete, e)
         } else if (e.key == 'Enter') {
             /* Edit intervals/velocities */
@@ -215,7 +227,7 @@ $(ø => {
         midi.setInputDevice(inputs[0])
         console.log(inputs)
     })
-})
+}
 
 window.prefs = userPreferences
 window.view = view

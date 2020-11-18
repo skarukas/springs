@@ -60,10 +60,13 @@ body {
     text-align: end;
     color: red;
     font-size: 10pt;
-    /* font-family: 'Menlo'; */
+    padding: 0px 5px;
+    background: rgba(255,255,255, 0.5);
 }
 
 .warn-container {
+    border-radius: 5px;
+    padding: 10px;
     position: absolute;
     bottom: 20px;
     right: 20px;
@@ -131,7 +134,7 @@ body {
 .filename {
     border: none;
     font-size: 14pt;
-    width: 50vw;
+    width: calc(50vw - 100px);
 } 
 
 #save-time {

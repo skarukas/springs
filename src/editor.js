@@ -362,6 +362,7 @@ editor.pasteJSONFromClipboard = mutator(function() {
                 if (json) {
                     editor.clearAllData()
                     editor.addCompressedData(json)
+                    addMessage("Loaded file from clipboard.", 'green')
                 } else throw "";
             } catch (e) {
                 addMessage("Unable to parse clipboard.", 'red')
@@ -902,6 +903,7 @@ editor.equallyDivide = mutator(function(n, ...objs) {
     function equallyDividePair(note1, note2) {
         if (note1.soundingPitch == note2.soundingPitch) return;
         let interval = note1.getIntervalTo(note2).divide(n);
+        if (interval instanceof tune.FreqRatio) interval = interval.asET();
 
         const incStep = (a, b, steps) => (b - a) / steps;
         let velocityStep = incStep(note1.velocity, note2.velocity, n);

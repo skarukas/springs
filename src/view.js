@@ -17,8 +17,8 @@ const view = {
     },
     /* Hide the loading animation then perform the callback */
     hideLoader(callback) {
-        this.$loader.fadeOut(1000)
-        this.$guiContainer.fadeTo(2000, 1, callback)      
+        this.$loader.fadeOut(1000, callback)
+        this.$guiContainer.fadeTo(2000, 1)      
     },
     /* Message for save to local storage */
     showSaveMessage() {

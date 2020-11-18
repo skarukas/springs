@@ -50,7 +50,7 @@
 /- add ease editing for glisses!
 /- save gliss easing
 /- add MIDI keyboard input
-
+/- add warning if the editor is unable to load
 
 
 
@@ -61,7 +61,7 @@
 /- Allow undo/redo
     - need to figure out macro actions (move/bend/resize)....
     - Redo sometimes creates duplicate of note (??)
-- Fix updateGraphics bug -- dividing JI tritone in 3 doesn't update the high note posn (?)
+/- Fix updateGraphics bug -- dividing JI tritone in 3 doesn't update the high note posn (?)
 - Add custom auto-connections
 - Make playback about beats or secs rather than pixels
     - make playback line adjust when zooming 
@@ -87,7 +87,6 @@
 - create channels with preference towards a specific pitch range
 - add gliss to midi capabilities
 - add error when gliss goes backwards
-- add warning if the editor is unable to load
 
 - import midi need to deal with multiple channels
 - import midi need to do tempo thing

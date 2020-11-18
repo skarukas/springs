@@ -85,7 +85,7 @@ export function addMessage(text, color='black') {
         .addClass('warning')
         .css({color})
         .appendTo($('.warn-container'))
-    a.delay(1000).fadeOut(2000, () => a.remove())
+    a.delay(3000).fadeOut(2000, () => a.remove())
 }
 
 /** Get the pitch name of a MIDI pitch, optionally including the octave number. */

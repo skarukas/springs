@@ -145,6 +145,9 @@ function getUndo(action, ...args) {
 }
 
 export function undo() {
+    /* Disabled for now */
+    return addMessage("Undo disabled", "orange")
+
     let action = undoStack.pop()
     if (action) {
         action.undo()
@@ -156,6 +159,9 @@ export function undo() {
 }
 
 export function redo() {
+    /* Disabled for now */
+    return addMessage("Redo disabled", "orange")
+    
     let action = redoStack.pop()
     if (action) {
         action.do()

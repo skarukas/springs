@@ -97,6 +97,7 @@
         }
 
         this.scaleVal = val;
+        playback.caret.cx(playback.position * val);
       },
 
       /** Scroll to specific coordinates. */
@@ -119,8 +120,10 @@
         this.line = editor$1.canvas.line().stroke({
           width: 2,
           color: 'red'
-        }).hide().front();
-        this.carrot = ruler.canvas.circle(10).fill('red').y(ruler.height / 2).hide().front();
+        }).opacity(0.6).hide().front();
+        let d = 8; //this.caret = ruler.canvas.polygon(`0, 0 ${w}, 0  ${w/2+1}, ${h} ${w/2-1}, ${h}`)
+
+        this.caret = ruler.canvas.circle(d).y(ruler.height - d).fill('red').opacity(0.6).hide().front();
       },
 
       intervalIndex: -1,
@@ -139,7 +142,7 @@
       set position(val) {
         playback._position = val;
         playback.line.plot(val, 0, val, editor$1.numKeys * editor$1.zoomY).show();
-        playback.carrot.cx(val * this.scaleVal).show();
+        playback.caret.cx(val * this.scaleVal).show();
       },
 
       get position() {
@@ -159,7 +162,7 @@
         let measureWidth = this.ticksPerBeat * this.beatsPerMeasure * editor$1.zoomX;
         let fps = 29;
         playback.line.show().front();
-        playback.carrot.show().front();
+        playback.caret.show().front();
         playback.intervalIndex = setInterval(() => {
           let now = Date.now();
           let deltaMs = now - start;
@@ -181,7 +184,7 @@
         playback.pause();
         playback.position = 0;
         playback.line.hide();
-        playback.carrot.hide();
+        playback.caret.hide();
       },
 
       /* Convert the number of ticks to seconds */
@@ -260,7 +263,7 @@
       let a = $(document.createElement('p')).text(text).addClass('warning').css({
         color
       }).appendTo($('.warn-container'));
-      a.delay(1000).fadeOut(2000, () => a.remove());
+      a.delay(3000).fadeOut(2000, () => a.remove());
     }
     /** Get the pitch name of a MIDI pitch, optionally including the octave number. */
 
@@ -1844,31 +1847,15 @@
     }
 
     function undo() {
-      let action = undoStack.pop();
-
-      if (action) {
-        action.undo();
-        redoStack.push(action);
-      } else {
-        addMessage("Nothing to undo", "orange");
-      }
-
-      return action;
+      /* Disabled for now */
+      return addMessage("Undo disabled", "orange");
     }
-    function redo$1() {
-      let action = redoStack.pop();
-
-      if (action) {
-        action.do();
-        undoStack.push(action);
-      } else {
-        addMessage("Nothing to redo", "orange");
-      }
-
-      return action;
+    function redo() {
+      /* Disabled for now */
+      return addMessage("Redo disabled", "orange");
     }
     window.undo = undo;
-    window.redo = redo$1;
+    window.redo = redo;
     window.stack = undoStack;
     window.redoStack = redoStack;
 
@@ -2123,8 +2110,8 @@
 
       /* Hide the loading animation then perform the callback */
       hideLoader(callback) {
-        this.$loader.fadeOut(1000);
-        this.$guiContainer.fadeTo(2000, 1, callback);
+        this.$loader.fadeOut(1000, callback);
+        this.$guiContainer.fadeTo(2000, 1);
       },
 
       /* Message for save to local storage */
@@ -2707,6 +2694,7 @@
           if (json) {
             editor$1.clearAllData();
             editor$1.addCompressedData(json);
+            addMessage("Loaded file from clipboard.", 'green');
           } else throw "";
         } catch (e) {
           addMessage("Unable to parse clipboard.", 'red');
@@ -3379,6 +3367,7 @@
       function equallyDividePair(note1, note2) {
         if (note1.soundingPitch == note2.soundingPitch) return;
         let interval = note1.getIntervalTo(note2).divide(n);
+        if (interval instanceof tune.FreqRatio) interval = interval.asET();
 
         const incStep = (a, b, steps) => (b - a) / steps;
 
@@ -3731,6 +3720,19 @@
     };
 
     $(ø => {
+      try {
+        init();
+      } catch (e) {
+        view$1.hideLoader(() => {
+          addMessage("An error occured when loading. Some features may not work correctly.", "red");
+          addMessage(e, "red");
+          addMessage("For a copy of this error, open your browser console.", "red");
+          console.error(e);
+        });
+      }
+    });
+
+    function init() {
       view$1.init();
       editor$1.draw();
       ruler.draw();
@@ -3833,7 +3835,6 @@
           editor$1.togglePlayback();
         } else if (e.key == 'Backspace') {
           /* Delete */
-          addMessage('Deleting selection');
           editor$1.applyToSelection(editor$1.delete, e);
         } else if (e.key == 'Enter') {
           /* Edit intervals/velocities */
@@ -3948,7 +3949,8 @@
         midi.setInputDevice(inputs[0]);
         console.log(inputs);
       });
-    });
+    }
+
     window.prefs = userPreferences;
     window.view = view$1;
     window.editor = editor$1;

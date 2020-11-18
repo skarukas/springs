@@ -45,6 +45,7 @@ const ruler = {
             ruler.ticks[i]?.move(i * val * editor.zoomX, 0);
         }
         this.scaleVal = val
+        playback.caret.cx(playback.position * val)
     }, 
     /** Scroll to specific coordinates. */
     scroll(x, y) {
