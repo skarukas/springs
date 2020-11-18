@@ -9,7 +9,7 @@ One of the limitations of MIDI editing in DAW's (Digital Audio Workstations) is 
 ### what
 In contrast, this environment allows voice-specific tuning changes, pitch bends between notes, and a completely fluid tuning ecosystem, meaning microtonal effects like "comma pumps" or pitch shifts can be easily accomplished. Notes may optionally be connected by intervals, which lock them together and allow them to respond dynamically to each other's tuning changes.
 
-Projects may be exported as MIDI files to be used in DAWs. Springs automatically partitions simultaneous pitch bends into different tracks so that the resulting MIDI file will include all tuning adjustments (these partitions may be arbitrary). There are (limited) MIDI importing capabilites.
+Projects may be exported as MIDI files to be used in DAWs. During exporting, springs automatically partitions simultaneous pitch bends into different tracks so that the resulting MIDI file will include all tuning adjustments (these partitions may be arbitrary). There are (limited) MIDI importing capabilites.
 
 This project is still in development, but you can [check out the latest working version here.](https://skarukas.github.io/springs/)
 
