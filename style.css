@@ -85,7 +85,7 @@ body {
 }
 
 .text-input {
-    position: absolute;
+    position: fixed;
     background-color: none;
     color: black;
     outline: none;

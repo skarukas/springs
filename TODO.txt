@@ -53,8 +53,8 @@
 /- add warning if the editor is unable to load
 /- pasting one note doesn't copy its bend
 /- if object is deleted, tooltip hangs around!!
-
-
+/- editing view not working on safari!!
+/- glisses don't play back on safari
 
 - rethink "addMessage" popups
 - Make color more visible
@@ -92,7 +92,7 @@
 - import midi need to deal with multiple channels
 - import midi need to do tempo thing
 - midi export is one beat off
-    
+
 - make open/save menus instead of different buttons
 
 - pitch bend bug in logic?? should i fix that
@@ -105,7 +105,6 @@
     - add browser not supported if webmidi not supported :(
 - enable parsing of cents
 - editing menu has wrong text
-- glisses don't play back on safari
 - be more attentive to i/o operations that may fail
 
 - add MIDI recording

@@ -243,7 +243,7 @@ function init() {
         title: "Export MIDI",
     })
 
-    $('#bend-range').on('input', event => {
+    $('#bend-range').on('change', event => {
         let val = (Math.round(event.target.value * 10) / 10).clamp(0, 128)
         event.target.value = val
         userPreferences.pitchBendWidth = val
