@@ -88,7 +88,59 @@
 
     <!-- Settings -->
     <div class="white-highlight setting-screen">
-        Settings not yet available.
+        <div class="setting">
+            <input type="checkbox" name="prop-bend" id="prop-bend" checked>
+            <label for="prop-bend">Propagate bend upon deletion of an edge</label>
+        </div>
+
+        <div class="setting">
+            <input type="checkbox" name="show-edges" id="show-edges">
+            <label for="show-edges">Always show interval sizes</label>
+        </div>
+
+        <div class="setting">
+            <label for="default-easing">Default gliss shape:</label>
+            <div>
+                <div id="easing-demo"></div>
+                <input id="easing-range" type="range" 
+                       name="default-easing" value="0.5" 
+                       max="1" min="0.01" step="any" style="width: 75px">
+            </div>
+        </div>
+    </div>
+
+    <!-- MIDI export Settings -->
+    <div class="white-highlight midi-export">
+        <p style="font-size: 0.8em;">
+            This exporting process will automatically partition your file into 
+            different voices (MIDI tracks) in order to preserve polyphonic pitch bends.
+            Open this file with a DAW and assign these tracks to the instrument of your choice.
+        </p>
+        <div class="setting">
+            <label for="bend-range" 
+                class="has-tooltip" 
+                title="Enter the 'pitch bend width' (in semitones) of the instrument you intend to use this MIDI data with. 
+                    Setting this correctly ensures the pitch bend from springs and your instrument will match.">Pitch bend width of your virtual instrument</label>
+            <div>
+                <input id="bend-range" type="number"
+                       name="bend-range" value="1"
+                       max="128.0" min="0.0" step="0.1" style="width: 75px">
+            </div>
+        </div>
+
+        <div class="setting">
+            <label for="bend-range">Filename</label>
+            <div>
+                <input id="midi-filename" type="text"
+                    name="midi-filename">
+                .mid
+            </div>
+        </div>
+
+        <div>
+            <button id="midi-export-cancel">Cancel</button>
+            <button id="midi-export-button">Export</button>
+        </div>
     </div>
 
     <div id="sequencer">
@@ -98,7 +150,10 @@
                 <input value="untitled" maxlength="50" 
                     type="text" title="Rename" 
                     class="filename" placeholder="untitled"/>
-                <span id="save-time"></span>
+                <span class="save-time-container">
+                    <img src="assets/check_icon.png" width="10">
+                    <span id="save-time"></span>
+                </span>
             </div>
             <div class="file-button-container"></div>
         </div>

@@ -122,8 +122,10 @@ const midi = {
                         for (let mid of mtrk) {
                             if (mid.isNoteOn()) {
                                 let pitch = mid.getNote()
+                                let start = mid.tt / 32
+                                if (start > editor.widthInTime) continue
                                 notesOn[pitch] = {
-                                    start: mid.tt / 32,
+                                    start,
                                     velocity: mid.getVelocity(),
                                     pitch
                                 }
@@ -148,15 +150,18 @@ const midi = {
                             }
                         }
                     }
+                    console.log("done reading mid")
                     bends = bends.sort((a, b) => a.time - b.time)
                     notes = notes.sort((a, b) => a.start - b.start)
                     let i = 0;
                     let currBend = 0;
                     for (let note of notes) {
-                        if (note.start >= bends[i].time) currBend = bends[i++].bend
+                        if (note.start >= bends[i]?.time) currBend = bends[i++].bend
                         note.bend = currBend
                     }
+                    console.log(notes)
                     view.hideLoader()
+                    console.log("resolving")
                     resolve(notes);
                 }
             })

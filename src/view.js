@@ -1,5 +1,7 @@
 import editor from "./editor.js"
 import playback from "./playbackData.js"
+import userPreferences from "./userPreferences.js"
+import midi from "./midi.js"
 
 /* for interaction with the DOM */
 const view = {
@@ -24,6 +26,7 @@ const view = {
     showSaveMessage() {
         $('#save-time')
             .text(`Saved to browser storage at ${(new Date()).toLocaleTimeString()}`)
+        $('.save-time-container')
             .show()
             .delay(1000)
             .fadeOut(2000)
@@ -31,6 +34,8 @@ const view = {
     /* Update the displayed filename */
     changeFileName(name) {
         this.$fileName.val(name)
+        midi.fileName = `${name} [PB=${userPreferences.pitchBendWidth}]`
+        $('#midi-filename').val(midi.fileName)
     },
     /* Append a button to the controls panel */
     addButton(text, parent = this.$controls) {
@@ -70,7 +75,7 @@ const view = {
             .attr('title', 'Download .spr file')
 
         /* Export MIDI */
-        this.iconButton("assets/midi2_icon.png", editor.exportMIDI)
+        this.iconButton("assets/midi2_icon.png", () => $('.midi-export').dialog('open'))
             .attr('title', 'Export .mid file')
             .css({
                 paddingRight: 0,
@@ -147,7 +152,7 @@ const view = {
         this.divider()
             
         /* Open Settings */
-        this.iconButton("assets/setting_icon.png", ø => $('.setting-screen').fadeIn(500))
+        this.iconButton("assets/setting_icon.png", () => $('.setting-screen').dialog('open'))
             .attr('title', 'Settings')
 
         /* Show Help */
@@ -198,7 +203,6 @@ const view = {
             }).appendTo('body')
 
         $('.control-screen').on('click', ø => $('.control-screen').fadeOut(500))
-        $('.setting-screen').on('click', ø => $('.setting-screen').fadeOut(500))
         $xRange.on('input', ø => editor.zoom(+$xRange.val(), editor.zoomY));
     }
 }

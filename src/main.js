@@ -4,10 +4,11 @@ import keyboard from "./keyboard.js";
 import playback from "./playbackData.js";
 import ruler from "./ruler.js";
 import view from "./view.js";
-import { addMessage } from "./util.js";
+import { addMessage, simpleBezierPath } from "./util.js";
 import userPreferences from "./userPreferences.js"
 import { undo, redo } from "./undo-redo.js";
 import midi from "./midi.js";
+import style from "./style.js";
 
 // onload
 $(ø => {
@@ -177,6 +178,86 @@ function init() {
         close: function () { $(".ui-helper-hidden-accessible > *:not(:last)").remove(); }
     })
 
+
+    /* Settings menu */
+    $('.setting-screen').dialog({
+        autoOpen: false,
+        width: 400,
+        title: "Settings",
+    })
+    $('.ui-widget-overlay').on('click', () => {
+        console.log("exit")
+        $('.setting-screen').dialog('close')
+    })
+
+    // show easing demo
+    let demoCanvas = SVG()
+        .addTo('#easing-demo')
+        .size(75, 50)
+    demoCanvas.rect(75, 50)
+        .fill(style.lightGrey)
+    let width = 10
+    let path = demoCanvas.path(simpleBezierPath(
+        {x: 0, y: width / 2}, 
+        {x: 75, y: 50 - width/2},
+        'horizontal',
+        userPreferences.glissEasing))
+        .stroke({
+            color: 'lightblue',
+            width
+        })
+        .fill('none')
+        .opacity(0.8)
+
+    $('#easing-range').val(userPreferences.glissEasing)
+    $('#show-edges').attr('checked', userPreferences.alwaysShowEdges)
+    $('#prop-bend').attr('checked', userPreferences.propagateBendAfterDeletion)
+
+    $('#easing-range').on('input', event => {
+        path.plot(simpleBezierPath(
+            {x: 0, y: width / 2}, 
+            {x: 75, y: 50 - width/2},
+            'horizontal',
+            event.target.value))
+        userPreferences.glissEasing = event.target.value
+    })
+
+    $('#show-edges').on('change', event => {
+        userPreferences.alwaysShowEdges = event.target.checked
+        if (event.target.checked){
+            for (let edge of editor.edges) edge.text.opacity(1)
+        } else {
+            for (let edge of editor.edges) edge.text.opacity(0)
+        }
+    }).trigger('change')
+
+    $('#prop-bend').on('change', event => {
+        userPreferences.propagateBendAfterDeletion = event.target.checked
+    })
+
+
+    /* MIDI export menu */
+    $('.midi-export').dialog({
+        autoOpen: false,
+        width: 400,
+        title: "Export MIDI",
+    })
+
+    $('#bend-range').on('input', event => {
+        let val = (Math.round(event.target.value * 10) / 10).clamp(0, 128)
+        event.target.value = val
+        userPreferences.pitchBendWidth = val
+        midi.fileName = `${editor.fileName} [PB=${val}]`
+        $('#midi-filename').val(midi.fileName)
+    }).val(userPreferences.pitchBendWidth)
+    $('#midi-filename').on('change', event => {
+        midi.fileName = event.target.value
+    }).on('keypress', e => e.stopPropagation())
+
+    $("#midi-export-button").on('click', () => { $('.midi-export').dialog('close'); editor.exportMIDI() })
+    $("#midi-export-cancel").on('click', () => $('.midi-export').dialog('close'))
+
+    /* contexmenus */
     $.contextMenu({
         selector: ".has-contextmenu, .has-tooltip",
         items: {

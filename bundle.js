@@ -1645,8 +1645,10 @@
                 for (let mid of mtrk) {
                   if (mid.isNoteOn()) {
                     let pitch = mid.getNote();
+                    let start = mid.tt / 32;
+                    if (start > editor.widthInTime) continue;
                     notesOn[pitch] = {
-                      start: mid.tt / 32,
+                      start,
                       velocity: mid.getVelocity(),
                       pitch
                     };
@@ -1673,17 +1675,20 @@
                 }
               }
 
+              console.log("done reading mid");
               bends = bends.sort((a, b) => a.time - b.time);
               notes = notes.sort((a, b) => a.start - b.start);
               let i = 0;
               let currBend = 0;
 
               for (let note of notes) {
-                if (note.start >= bends[i].time) currBend = bends[i++].bend;
+                if (note.start >= bends[i]?.time) currBend = bends[i++].bend;
                 note.bend = currBend;
               }
 
+              console.log(notes);
               view.hideLoader();
+              console.log("resolving");
               resolve(notes);
             };
           });
@@ -2116,12 +2121,15 @@
 
       /* Message for save to local storage */
       showSaveMessage() {
-        $('#save-time').text(`Saved to browser storage at ${new Date().toLocaleTimeString()}`).show().delay(1000).fadeOut(2000);
+        $('#save-time').text(`Saved to browser storage at ${new Date().toLocaleTimeString()}`);
+        $('.save-time-container').show().delay(1000).fadeOut(2000);
       },
 
       /* Update the displayed filename */
       changeFileName(name) {
         this.$fileName.val(name);
+        midi.fileName = `${name} [PB=${userPreferences.pitchBendWidth}]`;
+        $('#midi-filename').val(midi.fileName);
       },
 
       /* Append a button to the controls panel */
@@ -2155,7 +2163,7 @@
         this.iconButton("assets/download_icon.png", editor$1.saveJSONFile).attr('title', 'Download .spr file');
         /* Export MIDI */
 
-        this.iconButton("assets/midi2_icon.png", editor$1.exportMIDI).attr('title', 'Export .mid file').css({
+        this.iconButton("assets/midi2_icon.png", () => $('.midi-export').dialog('open')).attr('title', 'Export .mid file').css({
           paddingRight: 0,
           paddingLeft: 0
         }).children().attr('width', 30);
@@ -2212,7 +2220,7 @@
         this.divider();
         /* Open Settings */
 
-        this.iconButton("assets/setting_icon.png", ø => $('.setting-screen').fadeIn(500)).attr('title', 'Settings');
+        this.iconButton("assets/setting_icon.png", () => $('.setting-screen').dialog('open')).attr('title', 'Settings');
         /* Show Help */
 
         this.iconButton("assets/help_icon.png", ø => $('.control-screen').fadeIn(500)).attr('title', 'Show controls');
@@ -2255,7 +2263,6 @@
           bottom: 10
         }).appendTo('body');
         $('.control-screen').on('click', ø => $('.control-screen').fadeOut(500));
-        $('.setting-screen').on('click', ø => $('.setting-screen').fadeOut(500));
         $xRange.on('input', ø => editor$1.zoom(+$xRange.val(), editor$1.zoomY));
       }
 
@@ -2596,7 +2603,7 @@
     };
 
     editor$1.exportMIDI = function () {
-      midi.writeToFile(editor$1.notes, editor$1.fileName);
+      midi.writeToFile(editor$1.notes, midi.fileName);
     };
 
     editor$1.getEditorJSON = function () {
@@ -2802,6 +2809,7 @@
 
       try {
         localStorage.setItem("editor", JSON.stringify(json));
+        localStorage.setItem("prefs", JSON.stringify(userPreferences));
         return true;
       } catch {
         return false;
@@ -2953,6 +2961,14 @@
         editor$1.scroll(70, 700);
         editor$1.scale(0.9);
       }
+
+      jsonString = localStorage.getItem("prefs");
+      json = JSON.parse(jsonString);
+
+      if (json) {
+        /* Load saved preferences */
+        for (let pref in json) userPreferences[pref] = json[pref];
+      }
     }, "load");
     editor$1.clearAllData = mutator(function () {
       editor$1.delete(null, ...editor$1.objects);
@@ -2991,18 +3007,21 @@
         gliss.updateGraphics(0);
         glisses.push(gliss);
       }
-      /* Navigate to saved view */
-
 
       let meta = compressed.meta;
 
-      if (meta?.viewbox) {
-        editor$1.scroll(meta.viewbox.scrollX, meta.viewbox.scrollY);
-        editor$1.scale(meta.viewbox.scale);
-      }
+      if (meta) {
+        /* Navigate to saved view */
+        if (meta.viewbox) {
+          editor$1.scroll(meta.viewbox.scrollX, meta.viewbox.scrollY);
+          editor$1.scale(meta.viewbox.scale);
+        }
+        /* Load filename */
 
-      if (meta?.fileName) {
-        editor$1.fileName = meta.fileName;
+
+        if (meta.fileName) {
+          editor$1.fileName = meta.fileName;
+        }
       }
 
       editor$1.deselectAllObjects();
@@ -3086,7 +3105,7 @@
         y: seqConnector.source.y + editor$1.zoomY / 2
       };
       let end = editor$1.canvas.point(e.x, e.y);
-      let path = simpleBezierPath(start, end, 'horizontal');
+      let path = simpleBezierPath(start, end, 'horizontal', userPreferences.glissEasing);
       seqConnector.plot(path).show();
     };
 
@@ -3903,6 +3922,80 @@
           $(".ui-helper-hidden-accessible > *:not(:last)").remove();
         }
       });
+      /* Settings menu */
+
+      $('.setting-screen').dialog({
+        autoOpen: false,
+        width: 400,
+        title: "Settings"
+      });
+      $('.ui-widget-overlay').on('click', () => {
+        console.log("exit");
+        $('.setting-screen').dialog('close');
+      }); // show easing demo
+
+      let demoCanvas = SVG().addTo('#easing-demo').size(75, 50);
+      demoCanvas.rect(75, 50).fill(style.lightGrey);
+      let width = 10;
+      let path = demoCanvas.path(simpleBezierPath({
+        x: 0,
+        y: width / 2
+      }, {
+        x: 75,
+        y: 50 - width / 2
+      }, 'horizontal', userPreferences.glissEasing)).stroke({
+        color: 'lightblue',
+        width
+      }).fill('none').opacity(0.8);
+      $('#easing-range').val(userPreferences.glissEasing);
+      $('#show-edges').attr('checked', userPreferences.alwaysShowEdges);
+      $('#prop-bend').attr('checked', userPreferences.propagateBendAfterDeletion);
+      $('#easing-range').on('input', event => {
+        path.plot(simpleBezierPath({
+          x: 0,
+          y: width / 2
+        }, {
+          x: 75,
+          y: 50 - width / 2
+        }, 'horizontal', event.target.value));
+        userPreferences.glissEasing = event.target.value;
+      });
+      $('#show-edges').on('change', event => {
+        userPreferences.alwaysShowEdges = event.target.checked;
+
+        if (event.target.checked) {
+          for (let edge of editor$1.edges) edge.text.opacity(1);
+        } else {
+          for (let edge of editor$1.edges) edge.text.opacity(0);
+        }
+      }).trigger('change');
+      $('#prop-bend').on('change', event => {
+        userPreferences.propagateBendAfterDeletion = event.target.checked;
+      });
+      /* MIDI export menu */
+
+      $('.midi-export').dialog({
+        autoOpen: false,
+        width: 400,
+        title: "Export MIDI"
+      });
+      $('#bend-range').on('input', event => {
+        let val = (Math.round(event.target.value * 10) / 10).clamp(0, 128);
+        event.target.value = val;
+        userPreferences.pitchBendWidth = val;
+        midi.fileName = `${editor$1.fileName} [PB=${val}]`;
+        $('#midi-filename').val(midi.fileName);
+      }).val(userPreferences.pitchBendWidth);
+      $('#midi-filename').on('change', event => {
+        midi.fileName = event.target.value;
+      }).on('keypress', e => e.stopPropagation());
+      $("#midi-export-button").on('click', () => {
+        $('.midi-export').dialog('close');
+        editor$1.exportMIDI();
+      });
+      $("#midi-export-cancel").on('click', () => $('.midi-export').dialog('close'));
+      /* contexmenus */
+
       $.contextMenu({
         selector: ".has-contextmenu, .has-tooltip",
         items: {

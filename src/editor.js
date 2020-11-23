@@ -26,6 +26,7 @@ import audio from "./audio-playback.js";
 import view from "./view.js"
 import { macroActionEnd, mutator } from "./undo-redo.js"
 import model from "./hmm.js"
+import userPreferences from "./userPreferences.js";
 
 const { shape, intersect } = require('svg-intersections')
 
@@ -265,7 +266,7 @@ editor.copySelection = function() {
 }
 
 editor.exportMIDI = function() {
-    midi.writeToFile(editor.notes, editor.fileName)
+    midi.writeToFile(editor.notes, midi.fileName)
 }
 
 editor.getEditorJSON = function() {
@@ -463,6 +464,7 @@ editor.updateLocalStorage = function() {
     let json = editor.getEditorJSON()
     try {
         localStorage.setItem("editor", JSON.stringify(json))
+        localStorage.setItem("prefs", JSON.stringify(userPreferences))
         return true
     } catch {
         return false
@@ -472,6 +474,7 @@ editor.updateLocalStorage = function() {
 editor.loadEditorFromLocalStorage = mutator(function() {
     let jsonString = localStorage.getItem("editor")
     let json = JSON.parse(jsonString)
+
     if (json) {
         editor.addCompressedData(json)
     } else {
@@ -504,6 +507,12 @@ editor.loadEditorFromLocalStorage = mutator(function() {
         editor.deselectAllObjects()
         editor.scroll(70, 700)
         editor.scale(0.9) 
+    }
+    jsonString = localStorage.getItem("prefs")
+    json = JSON.parse(jsonString)
+    if (json) {
+        /* Load saved preferences */
+        for (let pref in json) userPreferences[pref] = json[pref]
     }
 }, "load")
 
@@ -554,14 +563,17 @@ editor.addCompressedData = mutator(function(compressed, atTime=0, atPitch=0) {
         glisses.push(gliss)
     }
 
-    /* Navigate to saved view */
     let meta = compressed.meta;
-    if (meta?.viewbox) {
-        editor.scroll(meta.viewbox.scrollX, meta.viewbox.scrollY)
-        editor.scale(meta.viewbox.scale)
-    }
-    if (meta?.fileName) {
-        editor.fileName = meta.fileName
+    if (meta) {
+        /* Navigate to saved view */
+        if (meta.viewbox) {
+            editor.scroll(meta.viewbox.scrollX, meta.viewbox.scrollY)
+            editor.scale(meta.viewbox.scale)
+        }
+        /* Load filename */
+        if (meta.fileName) {
+            editor.fileName = meta.fileName
+        }
     }
 
     editor.deselectAllObjects()
@@ -635,7 +647,7 @@ editor.togglePlayback = function() {
 editor.glisser = function(seqConnector, e) {
     let start = {x: seqConnector.source.xEnd, y: seqConnector.source.y + editor.zoomY / 2};
     let end = editor.canvas.point(e.x, e.y)
-    let path = simpleBezierPath(start, end, 'horizontal');
+    let path = simpleBezierPath(start, end, 'horizontal', userPreferences.glissEasing);
     seqConnector.plot(path).show();
 }
 

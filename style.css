@@ -94,12 +94,17 @@ body {
     border: 2px solid black;
 }
 
-.control-screen, .setting-screen {
+.control-screen, .setting-screen .midi-export {
     width: 100vw;
     height: 100vh;
     position: fixed;
     z-index: 2;
     display: none;
+}
+
+.setting {
+    padding: 10px;
+    padding-left: 0px;
 }
 
 #controls {
@@ -137,7 +142,7 @@ body {
     width: calc(50vw - 100px);
 } 
 
-#save-time {
+.save-time-container {
     display: none;
     font-size: 8pt;
     font-family: Arial;

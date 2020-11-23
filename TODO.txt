@@ -51,6 +51,8 @@
 /- save gliss easing
 /- add MIDI keyboard input
 /- add warning if the editor is unable to load
+/- pasting one note doesn't copy its bend
+/- if object is deleted, tooltip hangs around!!
 
 
 
@@ -82,7 +84,6 @@
 - add comments in editor
 
 - integrate copy/paste with clipboard?
-- pasting one note doesn't copy its bend
 
 - create channels with preference towards a specific pitch range
 - add gliss to midi capabilities
@@ -90,6 +91,7 @@
 
 - import midi need to deal with multiple channels
 - import midi need to do tempo thing
+- midi export is one beat off
     
 - make open/save menus instead of different buttons
 
@@ -98,8 +100,8 @@
 
 - GUI buttons
     - add measurement tool
-    - add settings
-    - save settings in local storage
+    /- add settings
+    /- save settings in local storage
     - add browser not supported if webmidi not supported :(
 - enable parsing of cents
 - editing menu has wrong text
@@ -108,6 +110,5 @@
 
 - add MIDI recording
 - personalize context menus
-- if object is deleted, tooltip hangs around!!
 
 - graphics are slow on safari :(
